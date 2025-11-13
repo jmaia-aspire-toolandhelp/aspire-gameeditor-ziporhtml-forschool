@@ -1,364 +1,359 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full bg-gray-900">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Game Engine</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load JSZip for zipping projects -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- Load FileSaver.js for saving blobs -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
-    <!-- Load three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.165.0/three.module.min.js" type="module"></script>
-
     <style>
-        /* Custom styles */
-        body {
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #111827; /* gray-900 */
-            color: #f3f4f6; /* gray-100 */
-        }
-        /* Single canvas for 3D */
-        #mainCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            border-radius: 8px;
-        }
-        input, select, button, textarea {
-            border-radius: 6px;
-            border: 1px solid #4b5563; /* gray-600 */
-            background-color: #374151; /* gray-700 */
+        body, html { overflow: hidden; height: 100%; font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2d3748; }
+        ::-webkit-scrollbar-thumb { background: #718096; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+        #mainCanvas { width: 100%; height: 100%; display: block; }
+        .modal { backdrop-filter: blur(5px); }
+        .modal-content { max-width: 80vw; max-height: 80vh; background-color: #2d3748; }
+        .tab-btn.active { border-bottom-color: #3b82f6; color: #3b82f6; }
+        .tab-btn { border-bottom: 2px solid transparent; }
+        .asset-tab-btn.active { background-color: #3b82f6; color: white; }
+        .asset-tab-btn { background-color: #374151; }
+        #inspectorContent input, #inspectorContent select {
+            background-color: #374151;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
             padding: 4px 8px;
-            color: #f3f4f6;
+            color: white;
+            width: 100%;
         }
-        input:focus, select:focus, textarea:focus {
-            outline: 2px solid #3b82f6; /* blue-500 */
-            border-color: #3b82f6;
+        #inspectorContent input[type="color"] { padding: 0; }
+        #inspectorContent input[type="checkbox"] { width: auto; }
+        .component-prop { font-size: 0.875rem; }
+        /* Style for fullscreen script editor */
+        #scriptEditorModalContent {
+            width: 90vw;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
         }
-        .hierarchy-item.selected {
-            background-color: #3b82f6; /* blue-500 */
+        #scriptEditorTextarea {
+            flex-grow: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            resize: none;
         }
-        .console-log { color: #d1d5db; }
-        .console-warn { color: #f59e0b; }
-        .console-error { color: #ef4444; }
-        #consoleMessages { max-height: 150px; } /* Reduced height */
-        #uploadProjectInput, #uploadTextureInput, #uploadAudioInput { display: none; }
-        
-        /* Modal, Dropdown styles... */
-        .dropdown { position: relative; display: inline-block; }
-        .dropdown-content { display: none; position: absolute; background-color: #1f2937; min-width: 160px; box-shadow: 0 8px 16px rgba(0,0,0,0.2); z-index: 100; border-radius: 6px; border: 1px solid #4b5563; }
-        .dropdown-content button { color: #f3f4f6; padding: 8px 12px; display: block; width: 100%; text-align: left; background-color: transparent; border: none; border-radius: 0; }
-        .dropdown-content button:hover { background-color: #374151; }
-        .dropdown:hover .dropdown-content { display: block; }
-        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(0, 0, 0, 0.7); z-index: 40; display: flex; align-items: center; justify-content: center; }
-        .modal-content { background-color: #1f2937; border: 1px solid #4b5563; border-radius: 8px; padding: 16px; z-index: 50; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        
-        /* Asset Browser Styles */
-        .asset-tab-btn.active {
-            background-color: #3b82f6; /* blue-500 */
-            border-color: #3b82f6;
-        }
-        .asset-tab-content {
-            display: none;
-        }
-        .asset-tab-content.active {
-            display: grid; /* Use grid for layout */
-        }
-        .asset-item {
-            background-color: #374151; /* gray-700 */
-            padding: 8px;
-            border-radius: 6px;
-            text-align: center;
+        /* Sprite Editor */
+        #spriteEditorCanvas {
+            background-color: #555;
+            image-rendering: pixelated;
             cursor: pointer;
-            hover:bg-gray-600;
         }
     </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden">
+<body class="h-full text-white flex flex-col">
 
-    <!-- 1. HEADER / TABS -->
-    <header class="bg-gray-800 text-white p-2 shadow-md z-30">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">3D Engine</h1>
-            <div class="flex space-x-2">
-                <!-- Project Dropdown Removed -->
-                <button id="settingsBtn" class="bg-gray-700 px-4 py-1 rounded-md">Settings</button>
-                <!-- Tab Buttons -->
-                <button id="editorTabBtn" class="bg-blue-600 px-4 py-1 rounded-md">Editor</button>
-                <button id="gameTabBtn" class="bg-gray-700 px-4 py-1 rounded-md">Game</button>
-                <button id="consoleToggleBtn" class="bg-gray-700 px-4 py-1 rounded-md">Console</button>
-                <button id="fullscreenBtn" class="bg-green-600 px-4 py-1 rounded-md hidden">Go Fullscreen</button>
+    <!-- Header -->
+    <header class="bg-gray-800 text-sm p-2 flex justify-between items-center z-30 shadow-md">
+        <div class="flex items-center space-x-4">
+            <span class="font-bold text-lg">3D Engine</span>
+            <div class="flex space-x-1">
+                <button id="editorTabBtn" class="tab-btn active px-3 py-1">Editor</button>
+                <button id="gameTabBtn" class="tab-btn px-3 py-1">Game</button>
             </div>
+        </div>
+        <div class="flex items-center space-x-2">
+            <!-- <button id="spriteEditorBtn" class="bg-indigo-500 px-2 py-1 rounded">Sprite Editor</button> -->
+            <button id="consoleBtn" class="bg-gray-700 px-2 py-1 rounded">Console</button>
+            <button id="settingsBtn" class="bg-gray-700 px-2 py-1 rounded">Settings</button>
+            <button id="fullscreenBtn" class="bg-blue-600 px-2 py-1 rounded">Play Fullscreen</button>
         </div>
     </header>
 
-    <!-- Hidden file inputs -->
-    <input type="file" id="uploadProjectInput" accept=".json">
-    <input type="file" id="uploadTextureInput" accept="image/*">
-    <input type="file" id="uploadAudioInput" accept="audio/*">
-
-    <!-- 2. MAIN CONTENT AREA -->
-    <main class="flex-1 flex flex-col overflow-hidden">
-        <div id="mainEditorArea" class="flex-1 flex overflow-hidden">
-            <!-- ===== EDITOR VIEW ===== -->
-            <div id="editorView" class="flex flex-1 overflow-hidden">
-                <!-- 2.1 HIERARCHY (Left Panel) -->
-                <aside class="w-64 bg-gray-800 p-3 overflow-y-auto shadow-inner">
-                    <div class="flex justify-between items-center mb-2">
-                        <h2 class="text-lg font-semibold">Hierarchy</h2>
-                        <div class="space-x-1">
-                            <button id="addGameObjectBtn" class="bg-green-600 text-white px-2 py-1 rounded text-sm font-bold" title="Add Game Object">Object +</button>
-                            <button id="addEmptyGameObjectBtn" class="bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold" title="Add Empty Game Object">Empty +</button>
-                        </div>
-                    </div>
-                    <ul id="hierarchyList" class="space-y-1">
-                        <!-- Game objects will be listed here by JS -->
-                    </ul>
-                </aside>
-
-                <!-- 2.2 SCENE (Center Panel) -->
-                <section class="flex-1 flex flex-col items-center justify-center p-4 bg-gray-900 relative">
-                    <!-- Gizmo buttons -->
-                    <div class="absolute top-5 left-5 z-20 flex space-x-1">
-                        <button id="gizmoTranslate" class="bg-blue-600 p-1 rounded">W:Move</button>
-                        <button id="gizmoRotate" class="bg-gray-700 p-1 rounded">E:Rotate</button>
-                        <button id="gizmoScale" class="bg-gray-700 p-1 rounded">R:Scale</button>
-                    </div>
-                    <canvas id="mainCanvas"></canvas>
-                </section>
-
-                <!-- 2.3 INSPECTOR (Right Panel) -->
-                <aside id="inspectorPanel" class="w-80 bg-gray-800 p-3 overflow-y-auto shadow-inner">
-                    <h2 class="text-lg font-semibold mb-2">Inspector</h2>
-                    <div id="inspectorContent" class="space-y-4">
-                        <p class="text-gray-400">Select an object in the Hierarchy to inspect it.</p>
-                    </div>
-                </aside>
-            </div>
-        </div>
-
-        <!-- 3. CONSOLE PANEL -->
-        <div id="consolePanel" class="h-48 bg-gray-900 border-t-2 border-gray-700 shadow-inner p-2 hidden flex-col z-20">
-            <div class="flex justify-between items-center mb-2">
-                <h3 class="text-lg font-semibold">Console</h3>
-                <div class="flex space-x-1">
-                    <button class="console-filter-btn bg-blue-600 px-2 py-1 text-xs rounded" data-filter="all">All</button>
-                    <button class="console-filter-btn bg-gray-700 px-2 py-1 text-xs rounded" data-filter="log">Log</button>
-                    <button class="console-filter-btn bg-gray-700 px-2 py-1 text-xs rounded" data-filter="warn">Warning</button>
-                    <button class="console-filter-btn bg-gray-700 px-2 py-1 text-xs rounded" data-filter="error">Error</button>
-                    <button id="clearConsoleBtn" class="bg-red-700 px-2 py-1 text-xs rounded">Clear</button>
-                </div>
-            </div>
-            <div id="consoleMessages" class="flex-1 overflow-y-auto font-mono text-sm space-y-1"></div>
-        </div>
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden">
         
-        <!-- 4. ASSET BROWSER PANEL -->
-        <div id="assetBrowserPanel" class="h-48 bg-gray-800 border-t-2 border-gray-700 shadow-inner p-2 flex flex-col z-20">
-            <div class="flex border-b border-gray-700 mb-2">
-                <button class="asset-tab-btn active px-4 py-1 border-b-2 border-transparent" data-tab="prefabs">Prefabs</button>
-                <button class="asset-tab-btn px-4 py-1 border-b-2 border-transparent" data-tab="scenes">Scenes</button>
-                <button class="asset-tab-btn px-4 py-1 border-b-2 border-transparent" data-tab="materials">Materials</button>
-                <button class="asset-tab-btn px-4 py-1 border-b-2 border-transparent" data-tab="audio">Audio</button>
-            </div>
-            <div class="flex-1 overflow-auto">
-                <!-- Prefabs Tab -->
-                <div id="prefabsTab" class="asset-tab-content active grid grid-cols-6 gap-2 p-2">
-                    <!-- Prefab items go here -->
-                </div>
-                <!-- Scenes Tab -->
-                <div id="scenesTab" class="asset-tab-content p-2 space-x-2">
-                    <button id="newSceneBtn" class="bg-blue-600 px-3 py-1 rounded">New Scene</button>
-                    <button id="saveSceneBtn" class="bg-green-600 px-3 py-1 rounded">Save Scene (.zip)</button>
-                    <button id="loadSceneBtn" class="bg-yellow-600 px-3 py-1 rounded">Load Scene (.json)</button>
-                </div>
-                <!-- Materials Tab -->
-                <div id="materialsTab" class="asset-tab-content grid grid-cols-6 gap-2 p-2">
-                    <button id="importTextureBtn" class="asset-item border-dashed border-2 border-gray-600 hover:border-blue-500">
-                        Import +
-                    </button>
-                    <!-- Material items go here -->
-                </div>
-                <!-- Audio Tab -->
-                <div id="audioTab" class="asset-tab-content grid grid-cols-6 gap-2 p-2">
-                    <button id="importAudioBtn" class="asset-item border-dashed border-2 border-gray-600 hover:border-blue-500">
-                        Import +
-                    </button>
-                    <!-- Audio items go here -->
+        <!-- Left Panel: Hierarchy -->
+        <aside class="w-64 bg-gray-800 p-3 overflow-y-auto shadow-inner">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-lg font-semibold">Hierarchy</h2>
+                <div class="space-x-1">
+                    <button id="addGameObjectBtn" class="bg-green-600 text-white px-2 py-1 rounded text-sm font-bold" title="Add Game Object">Object +</button>
+                    <button id="addEmptyGameObjectBtn" class="bg-blue-600 text-white px-2 py-1 rounded text-sm font-bold" title="Add Empty Game Object">Empty +</button>
                 </div>
             </div>
-        </div>
+            <!-- New Quick-Add Buttons -->
+            <div class="grid grid-cols-2 gap-1 mb-2">
+                <button id="addPointLightBtn" class="bg-yellow-600 text-white px-2 py-1 rounded text-xs">Point Light</button>
+                <button id="addCameraBtn" class="bg-purple-600 text-white px-2 py-1 rounded text-xs">Camera</button>
+            </div>
+            <ul id="hierarchyList" class="space-y-1">
+                <!-- Hierarchy items will be injected here -->
+            </ul>
+        </aside>
+
+        <!-- Center: Viewport -->
+        <section class="flex-1 flex flex-col items-center justify-center p-4 bg-gray-900 relative">
+            <!-- Gizmo buttons -->
+            <div class="absolute top-5 left-5 z-20 flex space-x-1">
+                <button id="gizmoTranslate" class="bg-blue-600 p-1 rounded">M:Move</button>
+                <button id="gizmoRotate" class="bg-gray-700 p-1 rounded">R:Rotate</button>
+                <button id="gizmoScale" class="bg-gray-700 p-1 rounded">X:Scale</button>
+            </div>
+            <canvas id="mainCanvas"></canvas>
+        </section>
+
+        <!-- Right Panel: Inspector -->
+        <aside id="inspectorPanel" class="w-72 bg-gray-800 p-3 overflow-y-auto shadow-inner">
+            <h2 class="text-lg font-semibold mb-2" id="inspectorTitle">Inspector</h2>
+            <div id="inspectorContent">
+                <!-- Inspector content will be injected here -->
+            </div>
+        </aside>
+
     </main>
 
-    <!-- 5. MODALS (Hidden by default) -->
-    <!-- Fullscreen Script Editor Modal -->
-    <div id="scriptEditorModal" class="modal-backdrop hidden">
-        <div class="modal-content w-11/12 h-5/6 flex flex-col">
-            <h2 class="text-xl font-semibold mb-2">Script Editor</h2>
-            <textarea id="fullscreenScriptTextarea" class="w-full flex-1 font-mono text-sm bg-gray-900 text-white rounded p-2"></textarea>
-            <div class="mt-4 flex justify-end">
-                <button id="closeScriptEditorBtn" class="bg-gray-600 px-4 py-2 rounded">Cancel</button>
-                <button id="saveScriptEditorBtn" class="bg-blue-600 px-4 py-2 rounded ml-2">Save and Close</button>
+    <!-- Bottom Panel: Console / Assets -->
+    <footer class="h-64 bg-gray-800 border-t border-gray-700 z-20 flex flex-col overflow-hidden">
+        
+        <!-- Console Panel -->
+        <div id="consolePanel" class="flex-1 flex-col overflow-hidden hidden">
+            <div class="p-2 bg-gray-700 flex justify-between items-center">
+                <h3 class="font-semibold">Console</h3>
+                <div class="flex items-center space-x-2">
+                    <button id="consoleFilterAll" class="bg-blue-600 text-xs px-2 py-1 rounded">All</button>
+                    <button id="consoleFilterLog" class="bg-gray-600 text-xs px-2 py-1 rounded">Log</button>
+                    <button id="consoleFilterWarn" class="bg-gray-600 text-xs px-2 py-1 rounded">Warn</button>
+                    <button id="consoleFilterError" class="bg-gray-600 text-xs px-2 py-1 rounded">Error</button>
+                    <button id="consoleClearBtn" class="bg-red-700 text-xs px-2 py-1 rounded">Clear</button>
+                </div>
+            </div>
+            <div id="consoleOutput" class="flex-1 p-2 overflow-y-auto text-sm font-mono space-y-1">
+                <!-- Console messages -->
             </div>
         </div>
-    </div>
+
+        <!-- Asset Browser Panel -->
+        <div id="assetPanel" class="flex-1 flex overflow-hidden">
+            <!-- Asset Tabs -->
+            <div class="w-32 bg-gray-900 p-2 overflow-y-auto">
+                <h3 class="font-semibold text-center mb-2">Assets</h3>
+                <ul class="space-y-1">
+                    <li><button data-tab="prefabs" class="asset-tab-btn w-full text-left px-3 py-1 rounded active">Prefabs</button></li>
+                    <li><button data-tab="scenes" class="asset-tab-btn w-full text-left px-3 py-1 rounded">Scenes</button></li>
+                    <li><button data-tab="materials" class="asset-tab-btn w-full text-left px-3 py-1 rounded">Materials</button></li>
+                    <li><button data-tab="textures" class="asset-tab-btn w-full text-left px-3 py-1 rounded">Textures</button></li>
+                    <li><button data-tab="audio" class="asset-tab-btn w-full text-left px-3 py-1 rounded">Audio</button></li>
+                </ul>
+            </div>
+            <!-- Asset Content -->
+            <div class="flex-1 bg-gray-700 p-2 overflow-y-auto">
+                <!-- Prefabs Tab -->
+                <div id="assetTab-prefabs" class="asset-tab-content grid grid-cols-4 gap-2">
+                    <!-- Prefab items -->
+                </div>
+                <!-- Scenes Tab -->
+                <div id="assetTab-scenes" class="asset-tab-content hidden space-x-2">
+                    <button id="saveSceneBtn" class="bg-blue-600 px-3 py-1 rounded">Save Scene</button>
+                    <label class="bg-green-600 px-3 py-1 rounded cursor-pointer">
+                        Load Scene
+                        <input type="file" id="loadSceneInput" accept=".zip" class="hidden">
+                    </label>
+                    <button id="newSceneBtn" class="bg-indigo-600 px-3 py-1 rounded">New Scene</button>
+                </div>
+                <!-- Materials Tab -->
+                <div id="assetTab-materials" class="asset-tab-content hidden">
+                    <button id="createMaterialBtn" class="bg-green-600 px-3 py-1 rounded mb-2">Create Material</button>
+                    <div id="materialList" class="grid grid-cols-4 gap-2">
+                        <!-- Material items -->
+                    </div>
+                </div>
+                <!-- Textures Tab -->
+                <div id="assetTab-textures" class="asset-tab-content hidden">
+                    <label class="bg-green-600 px-3 py-1 rounded cursor-pointer mb-2 inline-block">
+                        Import Texture
+                        <input type="file" id="importTextureInput" accept="image/*" class="hidden" multiple>
+                    </label>
+                    <div id="textureList" class="grid grid-cols-4 gap-2">
+                        <!-- Texture items -->
+                    </div>
+                </div>
+                <!-- Audio Tab -->
+                <div id="assetTab-audio" class="asset-tab-content hidden">
+                    <label class="bg-green-600 px-3 py-1 rounded cursor-pointer mb-2 inline-block">
+                        Import Audio
+                        <input type="file" id="importAudioInput" accept="audio/mp3, audio/wav, audio/ogg" class="hidden" multiple>
+                    </label>
+                    <div id="audioList" class="grid grid-cols-4 gap-2">
+                        <!-- Audio items -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </footer>
+
+    <!-- Modals -->
     <!-- Settings Modal -->
-    <div id="settingsModal" class="modal-backdrop hidden">
-        <div class="modal-content w-1/3">
+    <div id="settingsModal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="modal-content w-1/3 bg-gray-800 p-6 rounded-lg shadow-xl">
             <h2 class="text-xl font-semibold mb-4">Settings</h2>
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
                     <label for="editorBgColor">Editor Background</label>
-                    <input type="color" id="editorBgColor">
+                    <input type="color" id="editorBgColor" disabled value="#1f2937">
                 </div>
-                <!-- CubeMap Settings -->
-                <h3 class="text-lg font-semibold border-t border-gray-700 pt-2 mt-2">Skybox (CubeMap)</h3>
-                <p class="text-xs text-gray-400">Paste 6 image URLs for the skybox faces.</p>
-                <div class="grid grid-cols-2 gap-2">
-                    <input type="text" id="cubemapPX" placeholder="Positive X (+x)" class="text-sm">
-                    <input type="text" id="cubemapNX" placeholder="Negative X (-x)" class="text-sm">
-                    <input type="text" id="cubemapPY" placeholder="Positive Y (+y)" class="text-sm">
-                    <input type="text" id="cubemapNY" placeholder="Negative Y (-y)" class="text-sm">
-                    <input type="text" id="cubemapPZ" placeholder="Positive Z (+z)" class="text-sm">
-                    <input type="text" id="cubemapNZ" placeholder="Negative Z (-z)" class="text-sm">
-                </div>
-                <button id="loadCubeMapBtn" class="w-full bg-blue-600">Load CubeMap</button>
+                <p class="text-xs text-gray-400">Skybox and background color are now controlled by the Directional Light in Play Mode.</p>
             </div>
             <div class="mt-6 flex justify-end">
                 <button id="closeSettingsBtn" class="bg-blue-600 px-4 py-2 rounded">Close</button>
             </div>
         </div>
     </div>
+    
+    <!-- Script Editor Modal -->
+    <div id="scriptEditorModal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div id="scriptEditorModalContent" class="modal-content bg-gray-800 p-6 rounded-lg shadow-xl">
+            <h2 class="text-xl font-semibold mb-4">Edit Script</h2>
+            <textarea id="scriptEditorTextarea" class="w-full h-96"></textarea>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button id="scriptEditorCancel" class="bg-gray-600 px-4 py-2 rounded">Cancel</button>
+                <button id="scriptEditorSave" class="bg-blue-600 px-4 py-2 rounded">Save & Compile</button>
+            </div>
+        </div>
+    </div>
 
-    <!-- This is a script, so it's not type="module" -->
-    <script>
-        // --- 1. GLOBAL STATE & SETUP ---
-        const mainCanvas = document.getElementById('mainCanvas');
+    <!-- Sprite Editor Modal -->
+    <div id="spriteEditorModal" class="modal hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="modal-content w-auto bg-gray-800 p-6 rounded-lg shadow-xl flex flex-col items-center">
+            <h2 class="text-xl font-semibold mb-4">Pixel Sprite Editor</h2>
+            <canvas id="spriteEditorCanvas" width="256" height="256" class="border border-gray-900"></canvas>
+            <div class="flex space-x-2 mt-4">
+                <label>Color: <input type="color" id="spriteColorPicker" value="#FFFFFF"></label>
+                <button id="getSpriteDataURL" class="bg-green-600 px-3 py-1 rounded">Get Data URL</button>
+                <button id="closeSpriteEditor" class="bg-red-600 px-3 py-1 rounded">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Load external libraries -->
+    <script type="module">
+        // Import necessary libraries
+        const THREE_URL = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+        const ORBIT_CONTROLS_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js";
+        const TRANSFORM_CONTROLS_URL = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js";
+        const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+
+        // Dynamically import THREE.js and its modules
+        const THREE = await import(THREE_URL).then(() => window.THREE);
+        await import(ORBIT_CONTROLS_URL);
+        await import(TRANSFORM_CONTROLS_URL);
+        const JSZip = await import(JSZIP_URL).then(() => window.JSZip);
         
+        // --- 1. GLOBAL STATE & DOM ELEMENTS ---
+        let scene = []; // Array of GameObjects
+        let selectedObjectId = null;
+        let selectedAssetId = null; // Can be material name
+        let inspectorMode = 'object'; // 'object' or 'material'
+        let isPlaying = false;
+        let gameLoopId;
+        
+        // DOM Elements
+        const mainCanvas = document.getElementById('mainCanvas');
         const hierarchyList = document.getElementById('hierarchyList');
+        const inspectorPanel = document.getElementById('inspectorPanel');
+        const inspectorTitle = document.getElementById('inspectorTitle');
         const inspectorContent = document.getElementById('inspectorContent');
+        
         const addGameObjectBtn = document.getElementById('addGameObjectBtn');
         const addEmptyGameObjectBtn = document.getElementById('addEmptyGameObjectBtn');
+        const addPointLightBtn = document.getElementById('addPointLightBtn');
+        const addCameraBtn = document.getElementById('addCameraBtn');
         const editorTabBtn = document.getElementById('editorTabBtn');
         const gameTabBtn = document.getElementById('gameTabBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const editorView = document.getElementById('editorView');
-        
-        // Console
-        const consoleToggleBtn = document.getElementById('consoleToggleBtn');
-        const consolePanel = document.getElementById('consolePanel');
-        const consoleMessages = document.getElementById('consoleMessages');
-        const clearConsoleBtn = document.getElementById('clearConsoleBtn');
-        
-        // Asset Browser
-        const assetBrowserPanel = document.getElementById('assetBrowserPanel');
-        const prefabsTab = document.getElementById('prefabsTab');
-        const scenesTab = document.getElementById('scenesTab');
-        const materialsTab = document.getElementById('materialsTab');
-        const audioTab = document.getElementById('audioTab');
-        const newSceneBtn = document.getElementById('newSceneBtn');
-        const saveSceneBtn = document.getElementById('saveSceneBtn');
-        const loadSceneBtn = document.getElementById('loadSceneBtn');
-        const importTextureBtn = document.getElementById('importTextureBtn');
-        const importAudioBtn = document.getElementById('importAudioBtn');
-        
-        // File Inputs
-        const uploadProjectInput = document.getElementById('uploadProjectInput');
-        const uploadTextureInput = document.getElementById('uploadTextureInput');
-        const uploadAudioInput = document.getElementById('uploadAudioInput');
 
-        // Modals
-        const scriptEditorModal = document.getElementById('scriptEditorModal');
-        const fullscreenScriptTextarea = document.getElementById('fullscreenScriptTextarea');
-        const closeScriptEditorBtn = document.getElementById('closeScriptEditorBtn');
-        const saveScriptEditorBtn = document.getElementById('saveScriptEditorBtn');
+        // Settings Modal
         const settingsModal = document.getElementById('settingsModal');
         const settingsBtn = document.getElementById('settingsBtn');
         const closeSettingsBtn = document.getElementById('closeSettingsBtn');
-        const editorBgColorInput = document.getElementById('editorBgColor');
-        const loadCubeMapBtn = document.getElementById('loadCubeMapBtn');
         
         // Gizmo Buttons
         const gizmoTranslateBtn = document.getElementById('gizmoTranslate');
         const gizmoRotateBtn = document.getElementById('gizmoRotate');
         const gizmoScaleBtn = document.getElementById('gizmoScale');
-
-        // Engine State
-        let scene = []; // Our array of GameObjects
-        let selectedObjectId = null;
-        let isPlaying = false;
-        let gameLoopId = null;
-        let editorLoopId = null;
-        let lastTime = 0;
+        
+        // Script Editor
+        const scriptEditorModal = document.getElementById('scriptEditorModal');
+        const scriptEditorTextarea = document.getElementById('scriptEditorTextarea');
+        const scriptEditorSave = document.getElementById('scriptEditorSave');
+        const scriptEditorCancel = document.getElementById('scriptEditorCancel');
         let activeScriptComponent = null;
 
         // Console state
         let allConsoleMessages = [];
-        let consoleFilter = 'all';
-        let isConsoleOpen = false;
+        let consoleFilter = 'all'; // 'all', 'log', 'warn', 'error'
+        const consolePanel = document.getElementById('consolePanel');
+        const consoleBtn = document.getElementById('consoleBtn');
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        // Asset Panel
+        const assetPanel = document.getElementById('assetPanel');
+        const assetTabsContainer = document.querySelector('.asset-tab-content').parentElement.previousElementSibling;
+        const assetContentContainer = document.querySelector('.asset-tab-content').parentElement;
+        
+        // Scene Buttons
+        const saveSceneBtn = document.getElementById('saveSceneBtn');
+        const loadSceneInput = document.getElementById('loadSceneInput');
+        const newSceneBtn = document.getElementById('newSceneBtn');
 
-        // Settings
+        // Material/Texture Buttons
+        const createMaterialBtn = document.getElementById('createMaterialBtn');
+        const importTextureInput = document.getElementById('importTextureInput');
+        const materialList = document.getElementById('materialList');
+        const textureList = document.getElementById('textureList');
+        const importAudioInput = document.getElementById('importAudioInput');
+        const audioList = document.getElementById('audioList');
+        
         let settings = {
             editorBgColor: '#1f2937', // gray-800
         };
         
         // Asset Database
         let assetDatabase = {
-            prefabs: [],     // Array of { name: '...', data: {...} }
-            materials: {},   // Object of { 'name': THREE.Material }
-            audio: {}        // Object of { 'name': { name: '...', url: '...' } }
+            prefabs: {},     // Object of { 'name': '...json string...' }
+            materials: {},   // Object of { 'name': { material: THREE.Material, color: '#hex', textureName: '...' } }
+            textures: {},    // Object of { 'name': { texture: THREE.Texture, file: File, url: 'blob:...' } }
+            audio: {}        // Object of { 'name': { file: File, url: 'blob:...' } }
+        };
+        
+        // Global Input State
+        let Input = {
+            w: false, a: false, s: false, d: false
         };
 
         // --- 2. THREE.JS SETUP (Imported dynamically) ---
-        let THREE, OrbitControls, TransformControls;
         let threeScene, editorCamera, gameCamera, renderer, orbitControls, transformControls;
-
-    </script>
-
-    <!-- Importmap for three.js and controls -->
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.165.0/three.module.min.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
-        }
-    }
-    </script>
-
-    <!-- Main Engine Logic (as a module) -->
-    <script type="module">
-        // Import Three.js components
-        import * as THREE_MODULE from 'three';
-        import { OrbitControls as OrbitControls_MODULE } from 'three/addons/controls/OrbitControls.js';
-        import { TransformControls as TransformControls_MODULE } from 'three/addons/controls/TransformControls.js';
+        let defaultMaterial;
+        let audioListener; // For 3D sound
+        let audioLoader; // For loading audio
         
-        // Assign to global-like variables
-        THREE = THREE_MODULE;
-        OrbitControls = OrbitControls_MODULE;
-        TransformControls = TransformControls_MODULE;
+        // --- 3. CORE ENGINE CLASSES ---
 
-        /**
-         * Generates a unique ID
-         */
-        function generateId() {
-            return 'go_' + Math.random().toString(36).substr(2, 9);
-        }
-        
-        /**
-         * The base class for everything in the scene
-         */
         class GameObject {
             constructor(name = "GameObject") {
-                this.id = generateId();
+                this.id = crypto.randomUUID();
                 this.name = name;
                 this.components = [];
-                this.threeObject = new THREE.Group();
-                this.threeObject.name = this.name;
-                this.threeObject.userData = { gameObjectId: this.id };
-                threeScene.add(this.threeObject);
+                this.threeObject = new THREE.Object3D();
+                this.threeObject.userData.gameObjectId = this.id;
+                if (threeScene) { // Ensure threeScene is initialized before adding
+                    threeScene.add(this.threeObject);
+                }
             }
 
             addComponent(componentName) {
@@ -366,138 +361,169 @@
                 switch (componentName) {
                     case 'MeshRenderer':
                         component = new MeshRenderer(this); break;
-                    case 'Physics':
-                        component = new Physics(this); break;
+                    case 'RigidBody':
+                        component = new RigidBody(this); break;
                     case 'Camera':
                         component = new Camera(this); break;
                     case 'DirectionalLight':
                         component = new DirectionalLight(this); break;
+                    case 'PointLight':
+                        component = new PointLight(this); break;
                     case 'AudioSource':
                         component = new AudioSource(this); break;
                     case 'Script':
                         component = new Script(this); break;
+                    case 'PlayerController':
+                        component = new PlayerController(this); break;
                     default:
                         console.warn(`Unknown component: ${componentName}`);
                         return null;
                 }
-                if (component) {
-                    this.components.push(component);
-                    console.log(`Added ${componentName} to ${this.name}`);
-                }
+                this.components.push(component);
                 return component;
             }
 
             getComponent(componentName) {
                 return this.components.find(c => c.name === componentName);
             }
-            
-            getComponents(componentName) {
-                 return this.components.filter(c => c.name === componentName);
+
+            removeComponent(component) {
+                if (component.onDestroy) component.onDestroy();
+                this.components = this.components.filter(c => c.id !== component.id);
             }
             
-            destroy() {
-                this.components.forEach(comp => {
-                    if (typeof comp.onDestroy === 'function') {
-                        comp.onDestroy();
-                    }
-                });
-                threeScene.remove(this.threeObject);
-                // TODO: Dispose geometries, materials, textures
+            update(deltaTime) {
+                for (const component of this.components) {
+                    if (component.update) component.update(deltaTime);
+                }
             }
 
-            update(deltaTime) {
-                this.components.forEach(component => {
-                    if (typeof component.update === 'function') {
-                        component.update(deltaTime);
+            destroy() {
+                this.components.forEach(c => {
+                    if (c.onDestroy) c.onDestroy();
+                });
+                threeScene.remove(this.threeObject);
+                // Clean up children (meshes, etc.)
+                this.threeObject.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        // Don't dispose managed materials from the assetDatabase
+                        const isManaged = Object.values(assetDatabase.materials)
+                                              .some(matData => matData.material === child.material);
+                        if (!isManaged) {
+                            child.material.dispose();
+                        }
                     }
                 });
             }
         }
 
-        // --- Component Definitions ---
-
         class Component {
             constructor(gameObject) {
+                this.id = crypto.randomUUID();
                 this.gameObject = gameObject;
                 this.name = this.constructor.name;
             }
         }
-        
+
         class MeshRenderer extends Component {
             constructor(gameObject) {
                 super(gameObject);
-                this.geometryType = 'Box'; // Box, Sphere, Plane
+                this.geometryType = 'Box';
                 this.materialName = 'Default';
-                
                 this.geometry = new THREE.BoxGeometry(1, 1, 1);
-                this.material = assetDatabase.materials['Default'];
+                this.material = assetDatabase.materials['Default'].material;
                 this.mesh = new THREE.Mesh(this.geometry, this.material);
-                
                 this.gameObject.threeObject.add(this.mesh);
             }
-            
+
             rebuildGeometry() {
-                // Clean up old
-                this.gameObject.threeObject.remove(this.mesh);
-                
-                // Create new geometry
+                if (this.mesh) { this.gameObject.threeObject.remove(this.mesh); }
+                this.geometry.dispose();
+
                 switch (this.geometryType) {
                     case 'Sphere':
                         this.geometry = new THREE.SphereGeometry(0.5, 32, 16); break;
                     case 'Plane':
                         this.geometry = new THREE.PlaneGeometry(1, 1); break;
+                    case 'Cylinder':
+                        this.geometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32); break;
+                    case 'Torus':
+                        this.geometry = new THREE.TorusGeometry(0.4, 0.1, 16, 100); break;
                     case 'Box':
                     default:
                         this.geometry = new THREE.BoxGeometry(1, 1, 1); break;
                 }
-                // Re-create mesh with new geometry and existing material
                 this.mesh = new THREE.Mesh(this.geometry, this.material);
                 this.gameObject.threeObject.add(this.mesh);
             }
-            
-            setMaterial(name) {
-                const newMaterial = assetDatabase.materials[name];
-                if (newMaterial) {
-                    this.materialName = name;
-                    this.material = newMaterial;
-                    this.mesh.material = newMaterial;
+
+            setMaterial(materialName) {
+                const matData = assetDatabase.materials[materialName];
+                if (matData) {
+                    this.materialName = materialName;
+                    this.material = matData.material;
+                    if (this.mesh) {
+                        this.mesh.material = this.material;
+                    }
                 } else {
-                    console.warn(`Material '${name}' not found. Using Default.`);
+                    console.warn(`Material "${materialName}" not found. Using Default.`);
                     this.materialName = 'Default';
-                    this.material = assetDatabase.materials['Default'];
-                    this.mesh.material = this.material;
+                    this.material = assetDatabase.materials['Default'].material;
+                    if (this.mesh) {
+                        this.mesh.material = this.material;
+                    }
                 }
             }
-            
+
             onDestroy() {
-                this.gameObject.threeObject.remove(this.mesh);
+                if (this.mesh) {
+                    this.gameObject.threeObject.remove(this.mesh);
+                    this.geometry.dispose();
+                    // Material is managed in assetDatabase, don't dispose here
+                }
             }
         }
-        
+
         class Camera extends Component {
             constructor(gameObject) {
                 super(gameObject);
-                this.isGameCamera = true;
                 this.fov = 75;
+                this.aspect = mainCanvas.clientWidth / mainCanvas.clientHeight;
                 this.near = 0.1;
                 this.far = 1000;
-                this.threeCamera = new THREE.PerspectiveCamera(this.fov, mainCanvas.clientWidth / mainCanvas.clientHeight, this.near, this.far);
-                this.gameObject.threeObject.add(this.threeCamera);
+                this.camera = new THREE.PerspectiveCamera(this.fov, this.aspect, this.near, this.far);
+                
+                // Add the global audio listener to this camera
+                if (audioListener) {
+                    this.camera.add(audioListener);
+                }
+                
+                this.gameObject.threeObject.add(this.camera);
+
+                if (!gameCamera) { // Make the first camera the default game camera
+                    gameCamera = this.camera;
+                }
             }
-            updateAspectRatio(aspect) {
-                this.threeCamera.aspect = aspect;
-                this.threeCamera.updateProjectionMatrix();
+            updateCamera() {
+                this.camera.fov = this.fov;
+                this.camera.near = this.near;
+                this.camera.far = this.far;
+                this.camera.updateProjectionMatrix();
             }
             onDestroy() {
-                this.gameObject.threeObject.remove(this.threeCamera);
+                if (gameCamera === this.camera) {
+                    gameCamera = null; // Need logic to find next camera
+                }
+                this.gameObject.threeObject.remove(this.camera);
             }
         }
-        
+
         class DirectionalLight extends Component {
             constructor(gameObject) {
                 super(gameObject);
                 this.color = '#ffffff';
-                this.intensity = 1.0;
+                this.intensity = 1;
                 this.light = new THREE.DirectionalLight(this.color, this.intensity);
                 this.gameObject.threeObject.add(this.light);
                 this.helper = new THREE.DirectionalLightHelper(this.light, 1);
@@ -512,30 +538,98 @@
                 this.gameObject.threeObject.remove(this.light);
                 threeScene.remove(this.helper);
             }
+            
+            update(deltaTime) {
+                // This will only be called in Play Mode
+                if (!isPlaying) {
+                    // Always update helper in editor
+                    this.helper.position.copy(this.gameObject.threeObject.position);
+                    this.helper.update();
+                    return;
+                }
+                
+                // Update light helper
+                this.helper.update();
+
+                // Calculate sky color based on rotation
+                const rotX = this.gameObject.threeObject.rotation.x;
+                const t = (Math.sin(rotX) + 1) / 2; // 0 (down) to 1 (up)
+
+                const nightColor = new THREE.Color("#111827");
+                const horizonColor = new THREE.Color("#FFA500");
+                const dayColor = new THREE.Color("#87CEEB");
+
+                let finalColor = new THREE.Color();
+                if (t > 0.1) {
+                    // Day
+                    finalColor.lerpColors(horizonColor, dayColor, (t - 0.1) / 0.9);
+                } else {
+                    // Night
+                    finalColor.lerpColors(nightColor, horizonColor, t / 0.1);
+                }
+                
+                threeScene.background.set(finalColor);
+            }
         }
 
-        class Physics extends Component {
+        class PointLight extends Component {
+            constructor(gameObject) {
+                super(gameObject);
+                this.color = '#ffffff';
+                this.intensity = 10;
+                this.light = new THREE.PointLight(this.color, this.intensity);
+                this.gameObject.threeObject.add(this.light);
+                this.helper = new THREE.PointLightHelper(this.light, 0.5);
+                threeScene.add(this.helper);
+            }
+            updateLight() {
+                this.light.color.set(this.color);
+                this.light.intensity = this.intensity;
+                this.helper.update();
+            }
+            onDestroy() {
+                this.gameObject.threeObject.remove(this.light);
+                threeScene.remove(this.helper);
+            }
+            update() {
+                if (this.helper) this.helper.update();
+            }
+        }
+
+        class RigidBody extends Component {
             constructor(gameObject) {
                 super(gameObject);
                 this.mass = 1;
                 this.restitution = 0.5;
-                this.velocityX = 1;
-                this.velocityY = 0;
-                this.velocityZ = 0;
-                this.gravity = 9.8;
+                this.velocity = new THREE.Vector3(0, 0, 0);
+                this.gravityScale = 1;
+                this.isGrounded = false;
             }
             update(deltaTime) {
-                this.velocityY -= this.gravity * deltaTime;
-                this.gameObject.threeObject.position.x += this.velocityX * deltaTime;
-                this.gameObject.threeObject.position.y += this.velocityY * deltaTime;
-                this.gameObject.threeObject.position.z += this.velocityZ * deltaTime;
+                if (!isPlaying) return;
+                
+                const gravity = 9.8;
+                // Apply gravity
+                if (!this.isGrounded) {
+                    this.velocity.y -= gravity * this.gravityScale * deltaTime;
+                }
 
+                // Update position
+                this.gameObject.threeObject.position.addScaledVector(this.velocity, deltaTime);
+
+                // Simple boundary check (bounce off floor at y=0)
                 const mesh = this.gameObject.getComponent('MeshRenderer');
                 const halfHeight = mesh ? (this.gameObject.threeObject.scale.y / 2) : 0.5;
 
                 if (this.gameObject.threeObject.position.y - halfHeight < 0) {
                     this.gameObject.threeObject.position.y = halfHeight;
-                    this.velocityY *= -this.restitution;
+                    this.velocity.y *= -this.restitution;
+                    if (Math.abs(this.velocity.y) < 0.1) {
+                        this.velocity.y = 0;
+                        this.isGrounded = true;
+                    }
+                } else {
+                    this.isGrounded = false;
                 }
             }
         }
@@ -544,26 +638,85 @@
             constructor(gameObject) {
                 super(gameObject);
                 this.soundName = 'None';
-                this.audio = new Audio(); // HTML5 Audio Element
+                this.isSpatial = true;
+                this.minDistance = 1;
+                this.maxDistance = 100;
+                this.dopplerFactor = 1;
+                this.audio = null; // Will be THREE.Audio or THREE.PositionalAudio
+                this.buffer = null; // The loaded audio buffer
             }
             
             setSound(name) {
-                const sound = assetDatabase.audio[name];
-                if (sound) {
-                    this.soundName = name;
-                    this.audio.src = sound.url;
+                this.soundName = name;
+                const audioData = assetDatabase.audio[name];
+                if (audioData) {
+                    // Load the buffer from the URL
+                    audioLoader.load(audioData.url, (buffer) => {
+                        this.buffer = buffer;
+                        this.createAudioObject();
+                    }, undefined, (err) => {
+                        console.error(`Failed to load audio: ${name}`, err);
+                    });
                 } else {
-                    this.soundName = 'None';
-                    this.audio.src = '';
+                    this.buffer = null;
+                    this.createAudioObject(); // Will clear existing
+                }
+            }
+            
+            createAudioObject() {
+                // Clean up old audio object
+                if (this.audio) {
+                    if (this.audio.isPlaying) this.audio.stop();
+                    this.gameObject.threeObject.remove(this.audio);
+                }
+
+                if (!this.buffer) {
+                    this.audio = null;
+                    return;
+                }
+
+                if (this.isSpatial) {
+                    this.audio = new THREE.PositionalAudio(audioListener);
+                } else {
+                    this.audio = new THREE.Audio(audioListener);
+                }
+                
+                this.audio.setBuffer(this.buffer);
+                this.updateAudioSettings();
+                this.gameObject.threeObject.add(this.audio);
+            }
+            
+            updateAudioSettings() {
+                if (!this.audio) return;
+                
+                if (this.isSpatial && this.audio.isPositionalAudio) {
+                    this.audio.setRefDistance(this.minDistance);
+                    this.audio.setRolloffFactor(1); // Standard falloff
+                    this.audio.setMaxDistance(this.maxDistance);
+                    this.audio.setDopplerFactor(this.dopplerFactor);
+                } else if (!this.isSpatial && this.audio.isPositionalAudio) {
+                    // Switched from spatial to non-spatial
+                    this.createAudioObject();
+                } else if (this.isSpatial && !this.audio.isPositionalAudio) {
+                    // Switched from non-spatial to spatial
+                    this.createAudioObject();
                 }
             }
             
             play() {
-                if (this.audio.src) {
-                    this.audio.currentTime = 0;
+                if (this.audio) {
+                    if (this.audio.isPlaying) this.audio.stop();
                     this.audio.play();
-                } else {
-                    console.warn(`No audio clip selected for ${this.gameObject.name}`);
+                } else if (this.soundName !== 'None') {
+                    // Buffer might still be loading, try again
+                    console.warn(`Audio buffer for ${this.soundName} not loaded yet.`);
+                }
+            }
+            
+            onDestroy() {
+                if (this.audio) {
+                    if (this.audio.isPlaying) this.audio.stop();
+                    this.gameObject.threeObject.remove(this.audio);
                 }
             }
         }
@@ -571,174 +724,293 @@
         class Script extends Component {
             constructor(gameObject) {
                 super(gameObject);
-                this.id = 'comp_' + Math.random().toString(36).substr(2, 9);
-                this.scriptContent = `// Available: gameObject, threeObject, deltaTime
-// Example: this.counter = (this.counter || 0) + 1;
-// Example: gameObject.getComponent('AudioSource').play();
+                this.scriptContent = `// Available variables:
+// this.gameObject - The GameObject this script is attached to
+// this.getComponent(name) - Get another component on this object
+// deltaTime - Time since last frame
+// Input.w, Input.a, Input.s, Input.d - Key states
 
-function onUpdate(deltaTime, gameObject, threeObject) {
-    // threeObject.rotation.y += 1 * deltaTime;
+class ScriptBehavior {
+    onStart() {
+        // Runs once when the game starts
+        console.log("Script started on: " + this.gameObject.name);
+    }
+
+    onUpdate(deltaTime) {
+        // Runs every frame
+        // Example: Spin the object
+        // this.gameObject.threeObject.rotation.y += 1 * deltaTime;
+    }
 }
 `;
-                this.onUpdateFn = null;
+                this.behavior = null;
                 this.compileScript();
             }
+            
             compileScript() {
                 try {
-                    const body = this.scriptContent.substring(this.scriptContent.indexOf("{") + 1, this.scriptContent.lastIndexOf("}"));
-                    this.onUpdateFn = new Function('deltaTime', 'gameObject', 'threeObject', body);
+                    // Use a function constructor to evaluate the script content
+                    // This is safer than eval() as it doesn't pollute the local scope
+                    const scriptClass = new Function(`return ${this.scriptContent}`)();
+                    this.behavior = new scriptClass();
+                    // Bind 'this' for helper functions
+                    this.behavior.gameObject = this.gameObject;
+                    this.behavior.getComponent = (name) => this.gameObject.getComponent(name);
+                    
+                    if (this.behavior.onStart && isPlaying) {
+                        this.behavior.onStart();
+                    }
                     console.log(`Script compiled for ${this.gameObject.name}`);
                 } catch (e) {
-                    console.error(`Script compilation error for ${this.gameObject.name}: ${e.message}`);
-                    this.onUpdateFn = null;
+                    console.error(`Script compile error on ${this.gameObject.name}:`, e.message);
+                    this.behavior = null;
                 }
             }
+
             update(deltaTime) {
-                if (this.onUpdateFn) {
+                if (isPlaying && this.behavior && this.behavior.onUpdate) {
                     try {
-                        this.onUpdateFn.call(this, deltaTime, this.gameObject, this.gameObject.threeObject);
+                        this.behavior.onUpdate(deltaTime);
                     } catch (e) {
-                        console.error(`Script runtime error in ${this.gameObject.name}: ${e.message}`);
+                        console.error(`Script runtime error on ${this.gameObject.name}:`, e.message);
+                        this.behavior = null; // Stop running broken script
                     }
                 }
             }
         }
 
-        // --- 3. CONSOLE LOGIC ---
-        function captureConsole() {
-            const originalConsole = { log: console.log, warn: console.warn, error: console.error };
+        class PlayerController extends Component {
+            constructor(gameObject) {
+                super(gameObject);
+                this.moveSpeed = 5;
+                this.turnSpeed = 3; // Radians per second
+            }
+
+            update(deltaTime) {
+                if (!isPlaying) return;
+                
+                const moveAmount = this.moveSpeed * deltaTime;
+                const turnAmount = this.turnSpeed * deltaTime;
+
+                // Rotation (A/D)
+                if (Input.a) {
+                    this.gameObject.threeObject.rotation.y += turnAmount;
+                }
+                if (Input.d) {
+                    this.gameObject.threeObject.rotation.y -= turnAmount;
+                }
+
+                // Movement (W/S) - move in local forward/backward direction
+                if (Input.w) {
+                    this.gameObject.threeObject.translateZ(-moveAmount);
+                }
+                if (Input.s) {
+                    this.gameObject.threeObject.translateZ(moveAmount);
+                }
+            }
+        }
+
+        // --- 4. CONSOLE LOGIC ---
+        function overrideConsole() {
+            const originalLog = console.log;
+            const originalWarn = console.warn;
+            const originalError = console.error;
+
             const addMessage = (type, args) => {
-                const message = [...args].map(arg => (typeof arg === 'object' && arg !== null) ? JSON.stringify(arg) : arg).join(' ');
-                allConsoleMessages.push({ type, message, timestamp: new Date() });
+                const message = [...args].map(arg => {
+                    if (arg instanceof Error) return arg.stack;
+                    if (typeof arg === 'object' && arg !== null) {
+                        try {
+                            return JSON.stringify(arg, null, 2);
+                        } catch (e) {
+                            return String(arg);
+                        }
+                    }
+                    return String(arg);
+                }).join(' ');
+                
+                allConsoleMessages.push({ type, message, time: new Date() });
+                if (allConsoleMessages.length > 200) allConsoleMessages.shift(); // Limit history
+                
+                if (type === 'error') originalError.apply(console, args);
+                else if (type === 'warn') originalWarn.apply(console, args);
+                else originalLog.apply(console, args);
+                
                 renderConsole();
             };
-            console.log = (...args) => { originalConsole.log.apply(console, args); addMessage('log', args); };
-            console.warn = (...args) => { originalConsole.warn.apply(console, args); addMessage('warn', args); };
-            console.error = (...args) => { originalConsole.error.apply(console, args); addMessage('error', args); };
+
+            console.log = (...args) => addMessage('log', args);
+            console.warn = (...args) => addMessage('warn', args);
+            console.error = (...args) => addMessage('error', args);
         }
+        
         function renderConsole() {
-            if (!isConsoleOpen) return;
-            consoleMessages.innerHTML = '';
-            const filteredMessages = allConsoleMessages.filter(msg => consoleFilter === 'all' || msg.type === consoleFilter);
-            filteredMessages.forEach(msg => {
-                const p = document.createElement('p');
-                p.className = `console-${msg.type} border-b border-gray-800 py-1`;
-                p.textContent = `[${msg.timestamp.toLocaleTimeString()}] ${msg.message}`;
-                consoleMessages.appendChild(p);
-            });
-            consoleMessages.scrollTop = consoleMessages.scrollHeight;
+            const filteredMessages = allConsoleMessages.filter(msg => 
+                consoleFilter === 'all' || msg.type === consoleFilter
+            );
+            
+            let html = '';
+            for (const msg of filteredMessages) {
+                let colorClass = 'text-gray-300';
+                if (msg.type === 'log') colorClass = 'text-green-400';
+                else if (msg.type === 'warn') colorClass = 'text-yellow-400';
+                else if (msg.type === 'error') colorClass = 'text-red-400';
+                
+                html += `<div class="${colorClass} border-b border-gray-700 py-1">
+                    <span class="text-gray-500 text-xs">${msg.time.toLocaleTimeString()}</span> <pre class="inline-block whitespace-pre-wrap">${msg.message}</pre>
+                </div>`;
+            }
+            consoleOutput.innerHTML = html;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
         }
-        consoleToggleBtn.addEventListener('click', () => {
-            isConsoleOpen = !isConsoleOpen;
-            consolePanel.classList.toggle('hidden');
-            consoleToggleBtn.classList.toggle('bg-blue-600', isConsoleOpen);
-            consoleToggleBtn.classList.toggle('bg-gray-700', !isConsoleOpen);
-            if (isConsoleOpen) renderConsole();
-        });
-        document.querySelectorAll('.console-filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                consoleFilter = e.target.dataset.filter;
-                document.querySelectorAll('.console-filter-btn').forEach(b => { b.classList.add('bg-gray-700'); b.classList.remove('bg-blue-600'); });
-                e.target.classList.add('bg-blue-600'); e.target.classList.remove('bg-gray-700');
+
+        function setupConsoleButtons() {
+            consoleBtn.addEventListener('click', () => {
+                consolePanel.classList.toggle('hidden');
+                assetPanel.classList.toggle('hidden');
+            });
+            consoleClearBtn.addEventListener('click', () => {
+                allConsoleMessages = [];
                 renderConsole();
             });
-        });
-        clearConsoleBtn.addEventListener('click', () => { allConsoleMessages = []; renderConsole(); });
-        
-        // --- 4. EDITOR UI & LOGIC ---
+            
+            document.getElementById('consoleFilterAll').addEventListener('click', (e) => setConsoleFilter('all', e.target));
+            document.getElementById('consoleFilterLog').addEventListener('click', (e) => setConsoleFilter('log', e.target));
+            document.getElementById('consoleFilterWarn').addEventListener('click', (e) => setConsoleFilter('warn', e.target));
+            document.getElementById('consoleFilterError').addEventListener('click', (e) => setConsoleFilter('error', e.target));
+        }
 
+        function setConsoleFilter(filter, button) {
+            consoleFilter = filter;
+            renderConsole();
+            // Update button styles
+            [...button.parentElement.children].forEach(btn => btn.classList.replace('bg-blue-600', 'bg-gray-600'));
+            button.classList.replace('bg-gray-600', 'bg-blue-600');
+        }
+
+        // --- 5. HIERARCHY & INSPECTOR LOGIC ---
         function renderHierarchy() {
             hierarchyList.innerHTML = '';
             scene.forEach(go => {
                 const li = document.createElement('li');
-                li.id = `h_${go.id}`;
+                li.className = `px-2 py-1 rounded cursor-pointer ${go.id === selectedObjectId ? 'bg-blue-600' : 'bg-gray-700'}`;
                 li.textContent = go.name;
-                li.className = 'hierarchy-item px-2 py-1 rounded cursor-pointer hover:bg-gray-700';
-                if (go.id === selectedObjectId) {
-                    li.classList.add('selected');
-                }
+                li.dataset.id = go.id;
                 li.addEventListener('click', () => {
                     selectedObjectId = go.id;
+                    inspectorMode = 'object';
+                    selectedAssetId = null;
                     renderHierarchy();
                     renderInspector();
-                    const selectedGO = scene.find(g => g.id === selectedObjectId);
-                    if (selectedGO) {
-                        transformControls.attach(selectedGO.threeObject);
-                    }
+                    transformControls.attach(go.threeObject);
                 });
                 hierarchyList.appendChild(li);
             });
-            if (!selectedObjectId) {
-                transformControls.detach();
-            }
         }
         
         function renderInspector() {
+            if (inspectorMode === 'object' && selectedObjectId) {
+                renderObjectInspector();
+            } else if (inspectorMode === 'material' && selectedAssetId) {
+                renderMaterialInspector();
+            } else {
+                inspectorTitle.textContent = "Inspector";
+                inspectorContent.innerHTML = '<p class="text-gray-400">Select an object or asset.</p>';
+            }
+        }
+
+        function renderObjectInspector() {
             const go = scene.find(g => g.id === selectedObjectId);
             if (!go) {
-                inspectorContent.innerHTML = '<p class="text-gray-400">Select an object in the Hierarchy to inspect it.</p>';
+                inspectorTitle.textContent = "Inspector";
+                inspectorContent.innerHTML = '';
                 return;
             }
-            inspectorContent.innerHTML = '';
-            let html = `<div class="space-y-1"><label class="text-sm font-medium">Name</label><input type="text" id="inspect_name" value="${go.name}" class="w-full"></div>`;
-            html += '<h3 class="text-md font-semibold border-t border-gray-700 pt-2 mt-2">Transform</h3><div class="grid grid-cols-4 gap-1">';
-            html += '<label class="text-sm col-span-1">Pos</label>';
+            
+            inspectorTitle.textContent = "Object Inspector";
+
+            let html = '';
+            // Name
+            html += `<div class="mb-2"><label class="text-sm">Name</label><input type="text" id="goName" value="${go.name}" data-prop="name" class="w-full"></div>`;
+            
+            // Transform
+            html += '<h3 class="font-semibold mt-3 mb-1 border-b border-gray-700">Transform</h3>';
+            html += '<div class="grid grid-cols-4 gap-1 items-center">';
+            // Position
+            html += '<label class="text-sm">Pos</label>';
             html += createInspectorInput('position.x', go.threeObject.position.x, 'number', 0.1, 'transform');
             html += createInspectorInput('position.y', go.threeObject.position.y, 'number', 0.1, 'transform');
             html += createInspectorInput('position.z', go.threeObject.position.z, 'number', 0.1, 'transform');
-            html += '<label class="text-sm col-span-1">Rot</label>';
-            html += createInspectorInput('rotation.x', THREE.MathUtils.radToDeg(go.threeObject.rotation.x), 'number', 1, 'transform');
-            html += createInspectorInput('rotation.y', THREE.MathUtils.radToDeg(go.threeObject.rotation.y), 'number', 1, 'transform');
-            html += createInspectorInput('rotation.z', THREE.MathUtils.radToDeg(go.threeObject.rotation.z), 'number', 1, 'transform');
-            html += '<label class="text-sm col-span-1">Scl</label>';
+            // Rotation
+            html += '<label class="text-sm">Rot</label>';
+            html += createInspectorInput('rotation.x', go.threeObject.rotation.x, 'number', 0.01, 'transform-rot');
+            html += createInspectorInput('rotation.y', go.threeObject.rotation.y, 'number', 0.01, 'transform-rot');
+            html += createInspectorInput('rotation.z', go.threeObject.rotation.z, 'number', 0.01, 'transform-rot');
+            // Scale
+            html += '<label class="text-sm">Scale</label>';
             html += createInspectorInput('scale.x', go.threeObject.scale.x, 'number', 0.1, 'transform');
             html += createInspectorInput('scale.y', go.threeObject.scale.y, 'number', 0.1, 'transform');
             html += createInspectorInput('scale.z', go.threeObject.scale.z, 'number', 0.1, 'transform');
             html += '</div>';
 
             // Components
-            html += '<h3 class="text-md font-semibold border-t border-gray-700 pt-2 mt-2">Components</h3>';
             go.components.forEach(comp => {
-                html += `<div class="bg-gray-700 p-2 rounded space-y-1">${comp.name}`;
+                html += `<div class="mt-3 p-2 bg-gray-700 rounded">
+                            <h4 class="font-semibold text-sm mb-2">${comp.name}</h4>`;
+                
                 if (comp.name === 'MeshRenderer') {
-                    // Material Dropdown
-                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm">Material</label><select class="w-2/3 component-prop" data-comp-name="${comp.name}" data-prop="materialName">`;
+                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm" for="comp_geom_${comp.id}">Geometry</label>`;
+                    html += `<select class="w-2/3 component-prop" id="comp_geom_${comp.id}" data-comp-name="${comp.name}" data-prop="geometryType">`;
+                    ['Box', 'Sphere', 'Plane', 'Cylinder', 'Torus'].forEach(geomName => {
+                        html += `<option value="${geomName}" ${comp.geometryType === geomName ? 'selected' : ''}>${geomName}</option>`;
+                    });
+                    html += `</select></div>`;
+                    
+                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm" for="comp_mat_${comp.id}">Material</label>`;
+                    html += `<select class="w-2/3 component-prop" id="comp_mat_${comp.id}" data-comp-name="${comp.name}" data-prop="materialName">`;
                     Object.keys(assetDatabase.materials).forEach(matName => {
                         html += `<option value="${matName}" ${comp.materialName === matName ? 'selected' : ''}>${matName}</option>`;
                     });
                     html += `</select></div>`;
-                    // Geometry Dropdown
-                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm">Geom</label><select class="w-2/3 component-prop" data-comp-name="${comp.name}" data-prop="geometryType">`;
-                    ['Box', 'Sphere', 'Plane'].forEach(geomName => {
-                        html += `<option value="${geomName}" ${comp.geometryType === geomName ? 'selected' : ''}>${geomName}</option>`;
-                    });
-                    html += `</select></div>`;
                 }
-                if (comp.name === 'Physics') {
+                if (comp.name === 'RigidBody') {
                     html += createComponentInput(comp, 'mass', comp.mass, 'number', 0.1);
                     html += createComponentInput(comp, 'restitution', comp.restitution, 'number', 0.1);
+                    html += createComponentInput(comp, 'gravityScale', comp.gravityScale, 'number', 0.1);
                 }
                 if (comp.name === 'DirectionalLight') {
                     html += createComponentInput(comp, 'color', comp.color, 'color');
                     html += createComponentInput(comp, 'intensity', comp.intensity, 'number', 0.1);
                 }
+                if (comp.name === 'PointLight') {
+                    html += createComponentInput(comp, 'color', comp.color, 'color');
+                    html += createComponentInput(comp, 'intensity', comp.intensity, 'number', 1);
+                }
                 if (comp.name === 'Camera') {
                     html += createComponentInput(comp, 'fov', comp.fov, 'number', 1);
+                    html += createComponentInput(comp, 'near', comp.near, 'number', 0.01);
+                    html += createComponentInput(comp, 'far', comp.far, 'number', 1);
                 }
                 if (comp.name === 'AudioSource') {
-                    // Audio Dropdown
-                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm">Sound</label><select class="w-2/3 component-prop" data-comp-name="${comp.name}" data-prop="soundName">`;
+                    html += `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm" for="comp_audio_${comp.id}">Sound</label>`;
+                    html += `<select class="w-2/3 component-prop" id="comp_audio_${comp.id}" data-comp-name="${comp.name}" data-prop="soundName">`;
                     html += `<option value="None" ${comp.soundName === 'None' ? 'selected' : ''}>None</option>`;
                     Object.keys(assetDatabase.audio).forEach(audioName => {
                         html += `<option value="${audioName}" ${comp.soundName === audioName ? 'selected' : ''}>${audioName}</option>`;
                     });
                     html += `</select></div>`;
+                    html += createComponentInput(comp, 'isSpatial', comp.isSpatial, 'checkbox');
+                    html += createComponentInput(comp, 'minDistance', comp.minDistance, 'number', 1);
+                    html += createComponentInput(comp, 'maxDistance', comp.maxDistance, 'number', 1);
+                    html += createComponentInput(comp, 'dopplerFactor', comp.dopplerFactor, 'number', 0.1);
                     html += `<button data-comp-name="${comp.name}" data-action="play-audio" class="bg-blue-500 px-2 py-1 text-xs rounded mt-1">Play</button>`;
                 }
                 if (comp.name === 'Script') {
-                    html += `<textarea class="w-full h-40 font-mono text-xs component-prop" data-comp-name="${comp.name}" data-comp-id="${comp.id}" data-prop="scriptContent" disabled>${comp.scriptContent}</textarea>`;
-                    html += `<button data-comp-id="${comp.id}" data-action="compile-script" class="bg-green-500 px-2 py-1 text-xs rounded mt-1">Compile</button>`;
                     html += `<button data-comp-id="${comp.id}" data-action="edit-script-fs" class="bg-blue-500 px-2 py-1 text-xs rounded mt-1">Edit Fullscreen</button>`;
+                }
+                if (comp.name === 'PlayerController') {
+                    html += createComponentInput(comp, 'moveSpeed', comp.moveSpeed, 'number', 0.1);
+                    html += createComponentInput(comp, 'turnSpeed', comp.turnSpeed, 'number', 0.1);
                 }
                 html += '</div>';
             });
@@ -746,46 +1018,137 @@ function onUpdate(deltaTime, gameObject, threeObject) {
             // Add Component Button
             html += `<div class="border-t border-gray-700 pt-2 mt-2"><select id="addComponentSelect" class="w-full mb-2">`;
             html += `<option value="">-- Add Component --</option>`;
-            ['MeshRenderer', 'Physics', 'Camera', 'DirectionalLight', 'AudioSource', 'Script'].forEach(compName => {
+            ['MeshRenderer', 'RigidBody', 'Camera', 'DirectionalLight', 'PointLight', 'AudioSource', 'PlayerController', 'Script'].forEach(compName => {
                 html += `<option value="${compName}">${compName}</option>`;
             });
             html += `</select><button id="addComponentBtn" class="w-full bg-green-600 px-2 py-1 rounded">Add</button></div>`;
             
             // Save as Prefab Button
             html += `<div class="border-t border-gray-700 pt-2 mt-2"><button id="saveAsPrefabBtn" class="w-full bg-indigo-600 px-2 py-1 rounded">Save as Prefab</button></div>`;
+            
+            // Delete Object Button
+            html += `<div class="border-t border-gray-700 pt-2 mt-2"><button id="deleteObjectBtn" class="w-full bg-red-600 px-2 py-1 rounded">Delete Object</button></div>`;
 
             inspectorContent.innerHTML = html;
         }
         
-        // --- Inspector Event Delegation ---
-        inspectorContent.addEventListener('change', (e) => {
-            const go = scene.find(g => g.id === selectedObjectId);
-            if (!go) return;
-            if (e.target.dataset.type === 'transform') {
-                const path = e.target.id.split('.'); const val = parseFloat(e.target.value);
-                if (path[0] === 'rotation') { go.threeObject.rotation[path[1]] = THREE.MathUtils.degToRad(val); } 
-                else { go.threeObject[path[0]][path[1]] = val; }
+        function renderMaterialInspector() {
+            const matData = assetDatabase.materials[selectedAssetId];
+            if (!matData) {
+                inspectorTitle.textContent = "Inspector";
+                inspectorContent.innerHTML = '';
                 return;
             }
-            if (e.target.id === 'inspect_name') {
-                go.name = e.target.value; go.threeObject.name = go.name; renderHierarchy(); return;
-            }
-            if (e.target.matches('.component-prop')) {
-                const compName = e.target.dataset.compName; const prop = e.target.dataset.prop;
-                let comp = null;
-                if (compName === 'Script') { comp = go.components.find(c => c.id === e.target.dataset.compId); } 
-                else { comp = go.getComponent(compName); }
-                if (comp && prop in comp) {
-                    comp[prop] = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
-                    if (comp.name === 'MeshRenderer' && prop === 'geometryType') comp.rebuildGeometry();
-                    if (comp.name === 'MeshRenderer' && prop === 'materialName') comp.setMaterial(e.target.value);
-                    if (comp.name === 'DirectionalLight') comp.updateLight();
-                    if (comp.name === 'AudioSource' && prop === 'soundName') comp.setSound(e.target.value);
-                }
+            
+            inspectorTitle.textContent = `Material: ${selectedAssetId}`;
+            
+            let html = '';
+            
+            // Color
+            html += `<div class="mb-2">
+                        <label for="mat_color" class="text-sm">Color</label>
+                        <input type="color" id="mat_color" data-prop="color" data-mat-name="${selectedAssetId}" value="${matData.color}" class="w-full component-prop">
+                     </div>`;
+                     
+            // Texture
+            html += `<div class="mb-2 mt-2">
+                        <label for="mat_texture" class="text-sm">Texture</label>
+                        <select id="mat_texture" data-prop="textureName" data-mat-name="${selectedAssetId}" class="w-full component-prop">
+                            <option value="None" ${matData.textureName === 'None' ? 'selected' : ''}>None</option>`;
+            Object.keys(assetDatabase.textures).forEach(texName => {
+                html += `<option value="${texName}" ${matData.textureName === texName ? 'selected' : ''}>${texName}</option>`;
+            });
+            html += `</select></div>`;
+            
+            inspectorContent.innerHTML = html;
+        }
+
+        // --- Event Delegation for Inspector ---
+        inspectorContent.addEventListener('input', (e) => {
+            if (inspectorMode === 'object' && selectedObjectId) {
+                handleObjectInspectorInput(e);
+            } else if (inspectorMode === 'material' && selectedAssetId) {
+                handleMaterialInspectorInput(e);
             }
         });
+        
+        function handleMaterialInspectorInput(e) {
+            const matName = e.target.dataset.matName;
+            const prop = e.target.dataset.prop;
+            const value = e.target.value;
+            const matData = assetDatabase.materials[matName];
+            
+            if (!matData) return;
+            
+            if (prop === 'color') {
+                matData.color = value;
+                matData.material.color.set(value);
+            } else if (prop === 'textureName') {
+                matData.textureName = value;
+                const texData = assetDatabase.textures[value];
+                matData.material.map = texData ? texData.texture : null;
+                matData.material.needsUpdate = true;
+            }
+        }
+
+        function handleObjectInspectorInput(e) {
+            const go = scene.find(g => g.id === selectedObjectId);
+            if (!go) return;
+
+            const prop = e.target.dataset.prop;
+            const compName = e.target.dataset.compName;
+
+            if (prop === 'name') {
+                go.name = e.target.value;
+                renderHierarchy();
+                return;
+            }
+
+            if (e.target.dataset.type === 'transform' || e.target.dataset.type === 'transform-rot') {
+                const parts = prop.split('.');
+                const value = parseFloat(e.target.value);
+                if (isNaN(value)) return;
+                
+                if(e.target.dataset.type === 'transform-rot') {
+                     // Input is in degrees, store in radians
+                    go.threeObject[parts[0]][parts[1]] = THREE.MathUtils.degToRad(value);
+                } else {
+                    go.threeObject[parts[0]][parts[1]] = value;
+                }
+                transformControls.update();
+                return;
+            }
+
+            if (compName) {
+                let comp;
+                if(e.target.dataset.compId) { comp = go.components.find(c => c.id === e.target.dataset.compId); }
+                else { comp = go.getComponent(compName); }
+                
+                if (comp && prop in comp) {
+                    let val = e.target.value;
+                    if (e.target.type === 'number') {
+                        val = parseFloat(val);
+                    } else if (e.target.type === 'checkbox') {
+                        val = e.target.checked;
+                    }
+                    
+                    comp[prop] = val;
+                    
+                    if (comp.name === 'MeshRenderer' && prop === 'geometryType') comp.rebuildGeometry();
+                    if (comp.name === 'MeshRenderer' && prop === 'materialName') comp.setMaterial(val);
+                    if (comp.name === 'DirectionalLight' || comp.name === 'PointLight') comp.updateLight();
+                    if (comp.name === 'AudioSource' && prop === 'soundName') comp.setSound(val);
+                    if (comp.name === 'AudioSource' && (prop === 'isSpatial' || prop === 'minDistance' || prop === 'maxDistance' || prop === 'dopplerFactor')) comp.updateAudioSettings();
+                    if (comp.name === 'Camera') comp.updateCamera();
+                }
+            }
+        }
+
         inspectorContent.addEventListener('click', (e) => {
-            const go = scene.find(g => g.id === selectedObjectId); if (!go) return;
+            const go = scene.find(g => g.id === selectedObjectId);
+            if (!go && inspectorMode !== 'material') return; // Allow clicks if in material mode
+            if (inspectorMode === 'object' && !go) return; // But if in object mode, need a GO
+
             const action = e.target.dataset.action;
             if (e.target.id === 'addComponentBtn') {
                 const compName = document.getElementById('addComponentSelect').value;
@@ -794,438 +1157,837 @@ function onUpdate(deltaTime, gameObject, threeObject) {
             if (e.target.id === 'saveAsPrefabBtn') {
                 saveAsPrefab(go); return;
             }
+            if (e.target.id === 'deleteObjectBtn') {
+                deleteSelectedObject(); return;
+            }
             if (!action) return;
-            let comp = go.components.find(c => c.id === e.target.dataset.compId || c.name === e.target.dataset.compName);
-            switch(action) {
-                case 'compile-script': comp?.compileScript(); break;
-                case 'edit-script-fs':
-                    activeScriptComponent = comp;
-                    fullscreenScriptTextarea.value = comp.scriptContent;
+            
+            const compName = e.target.dataset.compName;
+            if (action === 'play-audio') {
+                const comp = go.getComponent(compName);
+                if (comp && comp.play) comp.play();
+            }
+            if (action === 'edit-script-fs') {
+                activeScriptComponent = go.components.find(c => c.id === e.target.dataset.compId);
+                if (activeScriptComponent) {
+                    scriptEditorTextarea.value = activeScriptComponent.scriptContent;
                     scriptEditorModal.classList.remove('hidden');
-                    break;
-                case 'play-audio': go.getComponent('AudioSource')?.play(); break;
+                }
             }
         });
 
-        function createInspectorInput(name, value, type = 'text', step = 1, dataType = 'component') {
+        function createInspectorInput(name, value, type = 'text', step = 1, dataType = '') {
+            if (dataType === 'transform-rot') {
+                // Convert radians to degrees for display
+                value = THREE.MathUtils.radToDeg(value);
+            }
             const id = name; const label = name.split('.').pop().toUpperCase();
-            return `<input type="${type}" id="${id}" value="${value}" step="${step}" data-type="${dataType}" class="w-full" title="${name}">`;
+            return `<input type="${type}" id="${id}" value="${value}" step="${step}" data-type="${dataType}" data-prop="${name}" class="w-full component-prop" title="${name}">`;
         }
+        
         function createComponentInput(component, name, value, type = 'text', step = 1) {
-            const compId = component.id || component.gameObject.id; const propId = `comp_${component.name}_${name}`;
+            const compId = component.id; const propId = `comp_${component.name}_${name}_${compId}`;
+            const isCheckbox = type === 'checkbox';
+            
+            if (isCheckbox) {
+                return `<div class="flex items-center space-x-2 mt-1">
+                    <label class="w-1/3 text-sm" for="${propId}">${name}</label>
+                    <input type="checkbox" id="${propId}" data-comp-name="${component.name}" data-comp-id="${compId}" data-prop="${name}"
+                           ${value ? 'checked' : ''} class="w-2/3 component-prop h-5 w-5 rounded">
+                </div>`;
+            }
+            
             return `<div class="flex items-center space-x-2 mt-1"><label class="w-1/3 text-sm" for="${propId}">${name}</label><input type="${type}" id="${propId}" data-comp-name="${component.name}" data-comp-id="${compId}" data-prop="${name}" value="${value}" ${type === 'number' ? `step="${step}"` : ''} class="w-2/3 component-prop"></div>`;
         }
         
-        // --- 5. ASSET BROWSER & PREFAB LOGIC ---
+        // --- 6. SCRIPT EDITOR MODAL ---
+        scriptEditorSave.addEventListener('click', () => {
+            if (activeScriptComponent) {
+                activeScriptComponent.scriptContent = scriptEditorTextarea.value;
+                activeScriptComponent.compileScript();
+            }
+            scriptEditorModal.classList.add('hidden');
+            activeScriptComponent = null;
+        });
+        scriptEditorCancel.addEventListener('click', () => {
+            scriptEditorModal.classList.add('hidden');
+            activeScriptComponent = null;
+        });
         
-        function renderAssetBrowser() {
-            // Prefabs
-            prefabsTab.innerHTML = '';
-            assetDatabase.prefabs.forEach(prefab => {
-                const div = document.createElement('div');
-                div.className = 'asset-item';
-                div.textContent = prefab.name;
-                div.addEventListener('click', () => instantiatePrefab(prefab.name));
-                prefabsTab.appendChild(div);
-            });
+        // --- 7. GAME LOOP & TABS ---
+        function runGameLoop(lastTime = 0) {
+            const time = performance.now();
+            const deltaTime = (time - lastTime) * 0.001; // Delta time in seconds
             
-            // Materials
-            materialsTab.innerHTML = '<button id="importTextureBtn" class="asset-item border-dashed border-2 border-gray-600 hover:border-blue-500">Import +</button>';
-            document.getElementById('importTextureBtn').addEventListener('click', () => uploadTextureInput.click());
-            Object.keys(assetDatabase.materials).forEach(matName => {
-                if (matName === 'Default') return; // Don't show default
-                const div = document.createElement('div');
-                div.className = 'asset-item';
-                div.textContent = matName;
-                // TODO: Add preview?
-                materialsTab.appendChild(div);
-            });
+            // Update all game objects
+            scene.forEach(go => go.update(deltaTime));
 
-            // Audio
-            audioTab.innerHTML = '<button id="importAudioBtn" class="asset-item border-dashed border-2 border-gray-600 hover:border-blue-500">Import +</button>';
-            document.getElementById('importAudioBtn').addEventListener('click', () => uploadAudioInput.click());
-            Object.keys(assetDatabase.audio).forEach(audioName => {
-                const div = document.createElement('div');
-                div.className = 'asset-item';
-                div.textContent = audioName;
-                audioTab.appendChild(div);
-            });
-        }
-        
-        // Asset Tab Switching
-        document.querySelectorAll('.asset-tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.asset-tab-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                const tab = e.target.dataset.tab;
-                document.querySelectorAll('.asset-tab-content').forEach(c => c.classList.remove('active'));
-                document.getElementById(tab + 'Tab').classList.add('active');
-            });
-        });
-        
-        // Scene Management Buttons
-        newSceneBtn.addEventListener('click', () => {
-            if (confirm("Clear current scene? All unsaved changes will be lost.")) {
-                clearScene();
+            // Render
+            const activeCamera = gameCamera || editorCamera;
+            if (activeCamera.aspect !== mainCanvas.clientWidth / mainCanvas.clientHeight) {
+                activeCamera.aspect = mainCanvas.clientWidth / mainCanvas.clientHeight;
+                activeCamera.updateProjectionMatrix();
             }
-        });
-        saveSceneBtn.addEventListener('click', () => downloadProject());
-        loadSceneBtn.addEventListener('click', () => uploadProjectInput.click());
-        
-        // Asset Import Listeners
-        uploadTextureInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const dataUrl = event.target.result;
-                const texName = file.name.split('.')[0] || `Material_${Object.keys(assetDatabase.materials).length}`;
-                new THREE.TextureLoader().load(dataUrl, (texture) => {
-                    const material = new THREE.MeshStandardMaterial({ map: texture });
-                    assetDatabase.materials[texName] = material;
-                    console.log(`Imported texture as material: ${texName}`);
-                    renderAssetBrowser();
-                    renderInspector(); // Update dropdowns
-                });
-            };
-            reader.readAsDataURL(file);
-            e.target.value = null;
-        });
-        uploadAudioInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const dataUrl = event.target.result;
-                const audioName = file.name.split('.')[0] || `Audio_${Object.keys(assetDatabase.audio).length}`;
-                assetDatabase.audio[audioName] = { name: audioName, url: dataUrl };
-                console.log(`Imported audio: ${audioName}`);
-                renderAssetBrowser();
-                renderInspector(); // Update dropdowns
-            };
-            reader.readAsDataURL(file);
-            e.target.value = null;
-        });
-
-        
-        function saveAsPrefab(go) {
-            const prefabName = prompt("Enter prefab name:", go.name);
-            if (!prefabName) return;
-            const prefabData = getSerializableObject(go);
-            assetDatabase.prefabs.push({ name: prefabName, data: prefabData });
-            console.log(`Saved ${prefabName} as prefab.`);
-            renderAssetBrowser();
-        }
-        
-        function instantiatePrefab(name) {
-            const prefab = assetDatabase.prefabs.find(p => p.name === name);
-            if (!prefab) {
-                console.error(`Prefab not found: ${name}`); return;
-            }
-            // Use rehydrate logic for a single object
-            rehydrateObject(prefab.data);
-            console.log(`Instantiated prefab: ${name}`);
-            renderHierarchy();
+            renderer.render(threeScene, activeCamera);
+            
+            gameLoopId = requestAnimationFrame(() => runGameLoop(time));
         }
 
-        // --- 6. GAME LOOPS & TAB LOGIC ---
         function runEditorLoop() {
-            if (isPlaying) return;
-            if (resizeRendererToDisplaySize(renderer)) {
-                const canvas = renderer.domElement;
-                editorCamera.aspect = canvas.clientWidth / canvas.clientHeight;
-                editorCamera.updateProjectionMatrix();
-            }
             orbitControls.update();
             renderer.render(threeScene, editorCamera);
-            editorLoopId = requestAnimationFrame(runEditorLoop);
+            gameLoopId = requestAnimationFrame(runEditorLoop);
         }
-        function runGameLoop(timestamp) {
-            if (!isPlaying) return;
-            const deltaTime = (timestamp - lastTime) / 1000;
-            lastTime = timestamp;
-            if (resizeRendererToDisplaySize(renderer)) {
-                const canvas = renderer.domElement; const aspect = canvas.clientWidth / canvas.clientHeight;
-                if (gameCamera) { gameCamera.aspect = aspect; gameCamera.updateProjectionMatrix(); }
-            }
-            scene.forEach(go => go.update(deltaTime));
-            if (gameCamera) { renderer.render(threeScene, gameCamera); } 
-            else { renderer.render(threeScene, editorCamera); }
-            gameLoopId = requestAnimationFrame(runGameLoop);
-        }
+        
         function play() {
+            if (isPlaying) return;
             isPlaying = true;
-            let cameraGO = scene.find(go => go.getComponent('Camera'));
-            if (cameraGO) {
-                gameCamera = cameraGO.getComponent('Camera').threeCamera;
-                const canvas = renderer.domElement; gameCamera.aspect = canvas.clientWidth / canvas.clientHeight;
-                gameCamera.updateProjectionMatrix();
-            } else {
-                console.warn("No GameObject with Camera component found. Using editor camera.");
-                gameCamera = editorCamera;
+            
+            // Find game camera
+            gameCamera = null;
+            for(const go of scene) {
+                const camComp = go.getComponent('Camera');
+                if (camComp) {
+                    gameCamera = camComp.camera;
+                    break; // Use first camera found
+                }
             }
-            editorTabBtn.classList.remove('bg-blue-600'); editorTabBtn.classList.add('bg-gray-700');
-            gameTabBtn.classList.add('bg-blue-600'); gameTabBtn.classList.remove('bg-gray-700');
-            fullscreenBtn.classList.remove('hidden');
-            orbitControls.enabled = false; transformControls.detach();
-            if (editorLoopId) cancelAnimationFrame(editorLoopId);
-            scene.forEach(go => go.getComponents('Script').forEach(s => s.compileScript()));
-            lastTime = performance.now();
-            runGameLoop(lastTime);
+            if (!gameCamera) {
+                console.warn("No 'Camera' component in scene. Using editor camera.");
+                gameCamera = editorCamera;
+                // Move listener from editor cam to this temp cam
+                editorCamera.remove(audioListener);
+                gameCamera.add(audioListener);
+            }
+            
+            // Stop editor loop
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            
+            // Hide helpers and gizmos
+            transformControls.detach();
+            threeScene.traverse(child => {
+                if (child.isHelper) child.visible = false;
+            });
+            
+            // Call onStart for all scripts
+            scene.forEach(go => {
+                go.components.forEach(comp => {
+                    if(comp.name === 'Script' && comp.behavior && comp.behavior.onStart) {
+                        try {
+                            comp.behavior.onStart();
+                        } catch (e) {
+                            console.error(`Script onStart error on ${go.name}:`, e);
+                        }
+                    }
+                });
+            });
+
+            // Start game loop
+            runGameLoop();
+            
+            editorTabBtn.classList.remove('active');
+            gameTabBtn.classList.add('active');
         }
+        gameTabBtn.addEventListener('click', play);
+
         function stop() {
+            if (!isPlaying) return;
             isPlaying = false;
-            editorTabBtn.classList.add('bg-blue-600'); editorTabBtn.classList.remove('bg-gray-700');
-            gameTabBtn.classList.remove('bg-gray-700'); gameTabBtn.classList.add('bg-blue-600');
-            fullscreenBtn.classList.add('hidden');
-            orbitControls.enabled = true;
+            
+            // Move listener back to editor cam if it was moved
+            if (gameCamera === editorCamera) {
+                gameCamera.remove(audioListener);
+                editorCamera.add(audioListener);
+            }
+            gameCamera = null; // Unset game camera
+
+            // Show helpers and gizmos
+            threeScene.traverse(child => {
+                if (child.isHelper) child.visible = true;
+            });
             const selectedGO = scene.find(g => g.id === selectedObjectId);
             if (selectedGO) { transformControls.attach(selectedGO.threeObject); }
             if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            
+            // Reset background
+            threeScene.background.set(settings.editorBgColor);
+            
             runEditorLoop();
             if (document.fullscreenElement) document.exitFullscreen();
+            
+            editorTabBtn.classList.add('active');
+            gameTabBtn.classList.remove('active');
         }
         editorTabBtn.addEventListener('click', stop);
-        gameTabBtn.addEventListener('click', play);
-        fullscreenBtn.addEventListener('click', () => { mainCanvas.requestFullscreen(); });
         
-        function createGameObject(isEmpty = false) {
-            const newGo = new GameObject(`GameObject ${scene.length + 1}`);
-            if (!isEmpty) { newGo.addComponent('MeshRenderer'); }
+        fullscreenBtn.addEventListener('click', () => {
+            if (!isPlaying) play();
+            mainCanvas.requestFullscreen(); 
+        });
+        
+        function createGameObject(isEmpty = false, componentsToAdd = [], name = null) {
+            const newGo = new GameObject(name || `GameObject ${scene.length + 1}`);
+            if (!isEmpty) {
+                if (!componentsToAdd.includes('MeshRenderer')) {
+                    newGo.addComponent('MeshRenderer');
+                }
+            }
+            componentsToAdd.forEach(compName => newGo.addComponent(compName));
+            
             scene.push(newGo);
             selectedObjectId = newGo.id;
+            inspectorMode = 'object';
+            selectedAssetId = null;
             renderHierarchy(); renderInspector();
             transformControls.attach(newGo.threeObject);
+            return newGo;
         }
         addGameObjectBtn.addEventListener('click', () => createGameObject(false));
         addEmptyGameObjectBtn.addEventListener('click', () => createGameObject(true));
+        addPointLightBtn.addEventListener('click', () => {
+            const lightGO = createGameObject(true, ['PointLight'], 'Point Light');
+            lightGO.threeObject.position.y = 2;
+        });
+        addCameraBtn.addEventListener('click', () => {
+            const camGO = createGameObject(true, ['Camera', 'PlayerController'], 'Camera');
+            camGO.threeObject.position.set(0, 1, 5);
+        });
+
+        // Global Input Listeners
         window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.id === 'scriptEditorTextarea') return;
+
             if (e.key === 'Escape' && isPlaying) stop();
-            if (isPlaying) return;
-            switch(e.key) {
-                case 'w': setGizmoMode('translate'); break;
-                case 'e': setGizmoMode('rotate'); break;
-                case 'r': setGizmoMode('scale'); break;
+            
+            // Player Controls
+            if (isPlaying) {
+                if (e.key === 'w' || e.key === 'W') Input.w = true;
+                if (e.key === 'a' || e.key === 'A') Input.a = true;
+                if (e.key === 's' || e.key === 'S') Input.s = true;
+                if (e.key === 'd' || e.key === 'D') Input.d = true;
+            }
+
+            // Editor Controls
+            if (!isPlaying) {
+                switch(e.key) {
+                    case 'm': setGizmoMode('translate'); break;
+                    case 'r': setGizmoMode('rotate'); break;
+                    case 'x': setGizmoMode('scale'); break;
+                    case 'Delete':
+                        deleteSelectedObject();
+                        break;
+                }
             }
         });
         
-        // --- 7. PROJECT SAVE/LOAD LOGIC ---
+        window.addEventListener('keyup', (e) => {
+            // Player Controls
+            if (e.key === 'w' || e.key === 'W') Input.w = false;
+            if (e.key === 'a' || e.key === 'A') Input.a = false;
+            if (e.key === 's' || e.key === 'S') Input.s = false;
+            if (e.key === 'd' || e.key === 'D') Input.d = false;
+        });
         
-        function getSerializableObject(go) {
-            // Helper to serialize a single GameObject
-            const goCopy = {
-                id: go.id, name: go.name,
-                transform: {
-                    position: go.threeObject.position.toArray(),
-                    rotation: [go.threeObject.rotation.x, go.threeObject.rotation.y, go.threeObject.rotation.z],
-                    scale: go.threeObject.scale.toArray()
-                },
-                components: go.components.map(comp => {
-                    const compCopy = { name: comp.name };
+        function deleteSelectedObject() {
+            if (!selectedObjectId) return;
+            const go = scene.find(g => g.id === selectedObjectId);
+            if (go) {
+                console.log(`Deleting ${go.name}`);
+                transformControls.detach();
+                go.destroy();
+                scene = scene.filter(g => g.id !== selectedObjectId);
+                selectedObjectId = null;
+                renderHierarchy();
+                renderInspector();
+            }
+        }
+        
+        // --- 8. PROJECT SAVE/LOAD LOGIC ---
+        function serializeScene() {
+            const sceneData = {
+                gameObjects: [],
+                assets: {
+                    prefabs: Object.keys(assetDatabase.prefabs),
+                    materials: {},
+                    textures: Object.keys(assetDatabase.textures),
+                    audio: Object.keys(assetDatabase.audio)
+                }
+            };
+
+            // Serialize GameObjects
+            scene.forEach(go => {
+                const goData = {
+                    id: go.id,
+                    name: go.name,
+                    transform: {
+                        position: go.threeObject.position.toArray(),
+                        rotation: [go.threeObject.rotation.x, go.threeObject.rotation.y, go.threeObject.rotation.z],
+                        scale: go.threeObject.scale.toArray()
+                    },
+                    components: []
+                };
+
+                go.components.forEach(comp => {
+                    let compData = { name: comp.name };
+                    // Serialize component properties
                     Object.keys(comp).forEach(key => {
-                        const val = comp[key];
-                        if (key !== 'gameObject' && key !== 'threeObject' && key !== 'mesh' &&
-                            key !== 'geometry' && key !== 'material' && key !== 'light' &&
-                            key !== 'helper' && key !== 'threeCamera' && key !== 'audio' && typeof val !== 'function') {
-                            compCopy[key] = val;
+                        if (key !== 'gameObject' && key !== 'id' && key !== 'name' &&
+                            typeof comp[key] !== 'function' && 
+                            !(comp[key] instanceof THREE.Object3D) &&
+                            !(comp[key] instanceof THREE.Camera) &&
+                            !(comp[key] instanceof THREE.Light) &&
+                            !(comp[key] instanceof THREE.Helper) &&
+                            !(comp[key] instanceof THREE.Geometry) &&
+                            !(comp[key] instanceof THREE.Material) &&
+                            !(comp[key] instanceof THREE.Audio) &&
+                            !(comp[key] instanceof THREE.PositionalAudio) &&
+                            !(comp[key] instanceof AudioBuffer) &&
+                            !(comp[key] instanceof THREE.Vector3)
+                           ) 
+                        {
+                            compData[key] = comp[key];
                         }
                     });
-                    return compCopy;
-                })
-            };
-            return goCopy;
-        }
-        
-        function getSerializableScene() {
-            return scene.map(go => getSerializableObject(go));
+                    goData.components.push(compData);
+                });
+                sceneData.gameObjects.push(goData);
+            });
+            
+            // Serialize Materials
+            Object.keys(assetDatabase.materials).forEach(matName => {
+                if (matName === 'Default') return;
+                const matData = assetDatabase.materials[matName];
+                sceneData.assets.materials[matName] = {
+                    color: matData.color,
+                    textureName: matData.textureName
+                };
+            });
+
+            return JSON.stringify(sceneData, null, 2);
         }
 
-        function downloadProject() {
+        saveSceneBtn.addEventListener('click', async () => {
+            const sceneJson = serializeScene();
             const zip = new JSZip();
-            const sceneData = getSerializableScene();
-            zip.file("scene/main.json", JSON.stringify(sceneData, null, 2));
-            const scriptFolder = zip.folder("scripts");
+            zip.file("main.json", sceneJson);
+            
+            // Add console logs
+            zip.file("logs.txt", allConsoleMessages.map(m => `[${m.type}] ${m.time.toISOString()}: ${m.message}`).join('\n'));
+            
+            // Add scripts
+            const scriptsFolder = zip.folder("scripts");
             scene.forEach(go => {
-                go.getComponents('Script').forEach(script => {
-                    const filename = `${go.name}_${script.id}.js`;
-                    scriptFolder.file(filename, script.scriptContent);
+                go.components.forEach(comp => {
+                    if (comp.name === 'Script') {
+                        scriptsFolder.file(`${go.name}_${comp.id}.js`, comp.scriptContent);
+                    }
                 });
             });
-            zip.generateAsync({type:"blob"}).then(blob => {
-                saveAs(blob, "my-game-project.zip");
-                console.log("Project downloaded as .zip");
+
+            // Add prefabs
+            const prefabsFolder = zip.folder("prefabs");
+            Object.keys(assetDatabase.prefabs).forEach(prefabName => {
+                prefabsFolder.file(`${prefabName}.json`, assetDatabase.prefabs[prefabName]);
             });
-        }
-        
-        uploadProjectInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file || !file.name.endsWith('.json')) {
-                console.error("Only .json project files can be uploaded.");
-                alert("Upload failed. Only .json files are supported for upload (not .zip).");
-                return;
-            }
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                try {
-                    const data = JSON.parse(event.target.result);
-                    rehydrateScene(data);
-                    console.log("Project loaded.");
-                } catch (err) { console.error("Failed to load project:", err.message); }
-            };
-            reader.readAsText(file); e.target.value = null; 
+
+            // Add textures
+            const texturesFolder = zip.folder("textures");
+            Object.keys(assetDatabase.textures).forEach(texName => {
+                texturesFolder.file(texName, assetDatabase.textures[texName].file);
+            });
+            
+            // Add audio
+            const audioFolder = zip.folder("audio");
+            Object.keys(assetDatabase.audio).forEach(audioName => {
+                audioFolder.file(audioName, assetDatabase.audio[audioName].file);
+            });
+            
+            zip.generateAsync({type:"blob"}).then(function(content) {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = "project.zip";
+                link.click();
+                console.log("Project saved.");
+            });
         });
-        
-        function clearScene() {
-            stop();
+
+        function clearScene(fullClear = false) {
             scene.forEach(go => go.destroy());
             scene = [];
             selectedObjectId = null;
+            transformControls.detach();
+            
+            if (fullClear) {
+                // Clear all assets
+                assetDatabase = { prefabs: {}, materials: {}, textures: {}, audio: {} };
+                // Re-add default material
+                assetDatabase.materials['Default'] = {
+                    material: defaultMaterial,
+                    color: '#4ade80',
+                    textureName: 'None'
+                };
+                renderAllAssetTabs();
+            }
+
             // Add default light
             const defaultLight = new GameObject("Global Light");
             defaultLight.addComponent('DirectionalLight');
             defaultLight.threeObject.position.set(5, 10, 7);
+            defaultLight.threeObject.rotation.x = 0.8; // Tilt down for daylight
             scene.push(defaultLight);
+            
+            // Add default camera
+            const defaultCamera = new GameObject("Main Camera");
+            defaultCamera.addComponent('Camera');
+            defaultCamera.addComponent('PlayerController');
+            defaultCamera.threeObject.position.set(0, 1, 5);
+            scene.push(defaultCamera);
+
             renderHierarchy();
             renderInspector();
         }
+        newSceneBtn.addEventListener('click', () => clearScene(true));
 
-        function rehydrateObject(goData) {
-            // Helper to rehydrate a single object (for prefabs)
-            const newGo = new GameObject(goData.name);
-            newGo.id = generateId(); // Give it a new ID
-            if (goData.transform) {
+        // New Project Load
+        loadSceneInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            console.log("Loading project...");
+            clearScene(true); // Clear everything, including assets
+            
+            try {
+                const zip = await new JSZip().loadAsync(file);
+                
+                // 1. Load Textures
+                const textureFiles = zip.folder("textures").file(/.*/);
+                for (const texFile of textureFiles) {
+                    const file = await texFile.async("blob");
+                    const url = URL.createObjectURL(file);
+                    await addTextureToDatabase(url, texFile.name, file);
+                }
+                
+                // 2. Load Audio
+                const audioFiles = zip.folder("audio").file(/.*/);
+                for (const audioFile of audioFiles) {
+                    const file = await audioFile.async("blob");
+                    const url = URL.createObjectURL(file);
+                    await addAudioToDatabase(url, audioFile.name, file);
+                }
+                
+                // 3. Load Prefabs
+                const prefabFiles = zip.folder("prefabs").file(/.*/);
+                for (const prefabFile of prefabFiles) {
+                    const prefabName = prefabFile.name.replace('.json', '');
+                    const prefabJson = await prefabFile.async("string");
+                    assetDatabase.prefabs[prefabName] = prefabJson;
+                }
+                renderPrefabTab();
+                
+                // 4. Load Scene File
+                const sceneFile = zip.file("main.json");
+                if (!sceneFile) {
+                    throw new Error("main.json not found in project zip.");
+                }
+                const sceneJson = await sceneFile.async("string");
+                const sceneData = JSON.parse(sceneJson);
+                
+                // 5. Load Materials (after textures)
+                if (sceneData.assets.materials) {
+                    for(const matName in sceneData.assets.materials) {
+                        const matInfo = sceneData.assets.materials[matName];
+                        addMaterialToDatabase(matName, matInfo.color, matInfo.textureName);
+                    }
+                }
+                
+                // 6. Reconstruct Scene
+                await reconstructScene(sceneData);
+                
+                console.log("Project loaded successfully.");
+                
+            } catch (err) {
+                console.error("Failed to load project:", err);
+                clearScene(true); // Reset to empty state on failure
+            }
+            
+            e.target.value = null; // Reset input
+        });
+
+        async function reconstructScene(sceneData) {
+            scene.forEach(go => go.destroy()); // Clear default objects
+            scene = [];
+            
+            // Load GameObjects
+            sceneData.gameObjects.forEach(goData => {
+                const newGo = new GameObject(goData.name);
+                newGo.id = goData.id;
                 newGo.threeObject.position.fromArray(goData.transform.position);
                 newGo.threeObject.rotation.fromArray(goData.transform.rotation);
                 newGo.threeObject.scale.fromArray(goData.transform.scale);
-            }
-            goData.components.forEach(compData => {
-                const newComp = newGo.addComponent(compData.name);
-                if (newComp) {
-                    Object.keys(compData).forEach(key => {
-                        if (key !== 'gameObject' && key in newComp) { newComp[key] = compData[key]; }
-                    });
-                    if (newComp.name === 'MeshRenderer') {
-                        newComp.rebuildGeometry();
-                        newComp.setMaterial(newComp.materialName);
+                
+                goData.components.forEach(compData => {
+                    const newComp = newGo.addComponent(compData.name);
+                    if (newComp) {
+                        // Copy saved properties
+                        Object.keys(compData).forEach(key => {
+                            if (key !== 'name' && key in newComp) {
+                                newComp[key] = compData[key];
+                            }
+                        });
+                        
+                        // Re-initialize specific components
+                        if (newComp.name === 'MeshRenderer') {
+                            newComp.rebuildGeometry();
+                            newComp.setMaterial(newComp.materialName);
+                        }
+                        if (newComp.name === 'Script') newComp.compileScript();
+                        if (newComp.name === 'DirectionalLight' || newComp.name === 'PointLight') newComp.updateLight();
+                        if (newComp.name === 'AudioSource') newComp.setSound(newComp.soundName); // Will load buffer
+                        if (newComp.name === 'Camera') newComp.updateCamera();
                     }
-                    if (newComp.name === 'Script') newComp.compileScript();
-                    if (newComp.name === 'DirectionalLight') newComp.updateLight();
-                    if (newComp.name === 'AudioSource') newComp.setSound(newComp.soundName);
-                }
+                });
+                scene.push(newGo);
             });
-            scene.push(newGo);
-            return newGo;
-        }
-        
-        function rehydrateScene(data) {
-            clearScene();
-            // Remove the default light that clearScene added
-            scene.forEach(go => go.destroy());
-            scene = [];
             
-            data.forEach(goData => rehydrateObject(goData));
             renderHierarchy();
             renderInspector();
         }
-        
-        // --- 8. SCRIPT EDITOR MODAL LOGIC ---
-        saveScriptEditorBtn.addEventListener('click', () => {
-            if (activeScriptComponent) {
-                activeScriptComponent.scriptContent = fullscreenScriptTextarea.value;
-                activeScriptComponent.compileScript(); renderInspector();
-            }
-            scriptEditorModal.classList.add('hidden'); activeScriptComponent = null;
-        });
-        closeScriptEditorBtn.addEventListener('click', () => {
-            scriptEditorModal.classList.add('hidden'); activeScriptComponent = null;
-        });
-        
-        // --- 9. SETTINGS MODAL LOGIC ---
+
+        // --- 9. SETTINGS LOGIC ---
         function loadSettings() {
             const savedSettings = localStorage.getItem('gameEngineSettings');
             if (savedSettings) { settings = JSON.parse(savedSettings); }
-            editorBgColorInput.value = settings.editorBgColor;
             threeScene.background = new THREE.Color(settings.editorBgColor);
         }
         function saveSettings() {
-            settings.editorBgColor = editorBgColorInput.value;
             localStorage.setItem('gameEngineSettings', JSON.stringify(settings));
-            threeScene.background = new THREE.Color(settings.editorBgColor);
         }
         settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
         closeSettingsBtn.addEventListener('click', () => { saveSettings(); settingsModal.classList.add('hidden'); });
-        loadCubeMapBtn.addEventListener('click', () => {
-            const urls = [
-                document.getElementById('cubemapPX').value, document.getElementById('cubemapNX').value,
-                document.getElementById('cubemapPY').value, document.getElementById('cubemapNY').value,
-                document.getElementById('cubemapPZ').value, document.getElementById('cubemapNZ').value
-            ];
-            if (urls.some(url => !url)) { alert("Please provide all 6 URLs for the CubeMap."); return; }
-            console.log("Loading CubeMap...");
-            new THREE.CubeTextureLoader().load(urls, (texture) => {
-                threeScene.background = texture; threeScene.environment = texture;
-                console.log("CubeMap loaded successfully.");
-            }, undefined, (err) => { console.error("Failed to load CubeMap:", err); alert("Failed to load CubeMap."); });
-        });
-
+        
         // --- 10. GIZMO LOGIC ---
         function setGizmoMode(mode) {
             transformControls.setMode(mode);
             gizmoTranslateBtn.classList.toggle('bg-blue-600', mode === 'translate'); gizmoTranslateBtn.classList.toggle('bg-gray-700', mode !== 'translate');
             gizmoRotateBtn.classList.toggle('bg-blue-600', mode === 'rotate'); gizmoRotateBtn.classList.toggle('bg-gray-700', mode !== 'rotate');
-            gizmoScaleBtn.classList.toggle('bg-blue-600', mode === 'scale'); gizDmoScaleBtn.classList.toggle('bg-gray-700', mode !== 'scale');
+            gizmoScaleBtn.classList.toggle('bg-blue-600', mode === 'scale'); gizmoScaleBtn.classList.toggle('bg-gray-700', mode !== 'scale');
         }
         gizmoTranslateBtn.addEventListener('click', () => setGizmoMode('translate'));
         gizmoRotateBtn.addEventListener('click', () => setGizmoMode('rotate'));
         gizmoScaleBtn.addEventListener('click', () => setGizmoMode('scale'));
+
+        // --- 11. ASSET BROWSER LOGIC ---
+        function renderAllAssetTabs() {
+            renderPrefabTab();
+            renderMaterialTab();
+            renderTextureTab();
+            renderAudioTab();
+        }
         
-        // --- 11. HELPER FUNCTIONS ---
-        function resizeRendererToDisplaySize(renderer) {
-            const canvas = renderer.domElement; const parent = canvas.parentElement;
-            const width = parent.clientWidth; const height = parent.clientHeight;
-            const needResize = canvas.width !== width || canvas.height !== height;
-            if (needResize) { renderer.setSize(width, height, false); }
-            return needResize;
+        // Tab Switching
+        assetTabsContainer.addEventListener('click', (e) => {
+            if (e.target.tagName !== 'BUTTON') return;
+            
+            const tabName = e.target.dataset.tab;
+            
+            // Update buttons
+            [...assetTabsContainer.querySelectorAll('button')].forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            // Update content
+            [...assetContentContainer.querySelectorAll('.asset-tab-content')].forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`assetTab-${tabName}`).classList.remove('hidden');
+        });
+        
+        // --- Prefabs ---
+        function saveAsPrefab(gameObject) {
+            // Simple serialization of the game object's creation data
+            const goData = {
+                name: gameObject.name,
+                components: []
+            };
+            gameObject.components.forEach(comp => {
+                let compData = { name: comp.name };
+                Object.keys(comp).forEach(key => {
+                    if (key !== 'gameObject' && key !== 'id' && key !== 'name' &&
+                        typeof comp[key] !== 'function' &&
+                        !(comp[key] instanceof THREE.Object3D) &&
+                        !(comp[key] instanceof THREE.Camera) &&
+                        !(comp[key] instanceof THREE.Light) &&
+                        !(comp[key] instanceof THREE.Helper) &&
+                        !(comp[key] instanceof THREE.Geometry) &&
+                        !(comp[key] instanceof THREE.Material) &&
+                        !(comp[key] instanceof THREE.Audio) &&
+                        !(comp[key] instanceof THREE.PositionalAudio) &&
+                        !(comp[key] instanceof AudioBuffer) &&
+                        !(comp[key] instanceof THREE.Vector3)
+                       ) 
+                    {
+                        compData[key] = comp[key];
+                    }
+                });
+                goData.components.push(compData);
+            });
+            
+            const prefabName = `${gameObject.name}_Prefab`;
+            assetDatabase.prefabs[prefabName] = JSON.stringify(goData);
+            renderPrefabTab();
+            console.log(`Saved prefab: ${prefabName}`);
+        }
+        
+        function renderPrefabTab() {
+            const prefabTab = document.getElementById('assetTab-prefabs');
+            prefabTab.innerHTML = '';
+            Object.keys(assetDatabase.prefabs).forEach(prefabName => {
+                const btn = document.createElement('button');
+                btn.className = 'bg-indigo-700 p-2 rounded text-left';
+                btn.textContent = prefabName;
+                btn.onclick = () => instantiatePrefab(prefabName);
+                prefabTab.appendChild(btn);
+            });
+        }
+        
+        function instantiatePrefab(prefabName) {
+            const prefabData = JSON.parse(assetDatabase.prefabs[prefabName]);
+            const newGo = new GameObject(prefabData.name);
+            
+            prefabData.components.forEach(compData => {
+                const newComp = newGo.addComponent(compData.name);
+                if (newComp) {
+                    Object.keys(compData).forEach(key => {
+                        if (key !== 'name' && key in newComp) {
+                            newComp[key] = compData[key];
+                        }
+                    });
+                    
+                    if (newComp.name === 'MeshRenderer') {
+                        newComp.rebuildGeometry();
+                        newComp.setMaterial(newComp.materialName);
+                    }
+                    if (newComp.name === 'Script') newComp.compileScript();
+                    if (newComp.name === 'DirectionalLight' || newComp.name === 'PointLight') newComp.updateLight();
+                    if (newComp.name === 'AudioSource') newComp.setSound(newComp.soundName);
+                    if (newComp.name === 'Camera') newComp.updateCamera();
+                }
+            });
+            
+            scene.push(newGo);
+            selectedObjectId = newGo.id;
+            inspectorMode = 'object';
+            selectedAssetId = null;
+            renderHierarchy();
+            renderInspector();
+            transformControls.attach(newGo.threeObject);
         }
 
+        // --- Materials & Textures ---
+        createMaterialBtn.addEventListener('click', () => {
+            const matName = prompt("Enter material name:", `Material_${Object.keys(assetDatabase.materials).length}`);
+            if (!matName) return; // User cancelled
+            if (assetDatabase.materials[matName]) {
+                console.warn(`Material name "${matName}" already exists.`);
+                return;
+            }
+            
+            addMaterialToDatabase(matName, '#ffffff', 'None');
+            selectedAssetId = matName;
+            inspectorMode = 'material';
+            renderInspector();
+        });
+        
+        function addMaterialToDatabase(name, color, textureName) {
+            const texData = assetDatabase.textures[textureName];
+            const texture = texData ? texData.texture : null;
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                map: texture
+            });
+            assetDatabase.materials[name] = {
+                material: material,
+                color: color,
+                textureName: textureName
+            };
+            renderMaterialTab();
+        }
+        
+        function renderMaterialTab() {
+            materialList.innerHTML = '';
+            Object.keys(assetDatabase.materials).forEach(matName => {
+                const matData = assetDatabase.materials[matName];
+                const btn = document.createElement('button');
+                btn.className = 'p-2 rounded text-left';
+                btn.style.border = `2px solid ${selectedAssetId === matName ? '#3b82f6' : 'transparent'}`;
+                btn.style.backgroundColor = matData.color;
+                
+                const span = document.createElement('span');
+                span.textContent = matName;
+                span.className = 'p-1 rounded bg-black bg-opacity-50 text-white text-xs';
+                btn.appendChild(span);
+                
+                btn.onclick = () => {
+                    selectedAssetId = matName;
+                    inspectorMode = 'material';
+                    renderInspector();
+                    renderMaterialTab(); // To update selection highlight
+                };
+                materialList.appendChild(btn);
+            });
+        }
+        
+        importTextureInput.addEventListener('change', (e) => {
+            for (const file of e.target.files) {
+                const url = URL.createObjectURL(file);
+                addTextureToDatabase(url, file.name, file);
+            }
+            e.target.value = null; // Reset input
+        });
+        
+        function addTextureToDatabase(url, name, file) {
+            return new Promise((resolve, reject) => {
+                const loader = new THREE.TextureLoader();
+                loader.load(url, (texture) => {
+                    assetDatabase.textures[name] = { texture: texture, file: file, url: url };
+                    renderTextureTab();
+                    console.log(`Texture loaded: ${name}`);
+                    resolve(texture);
+                }, undefined, (err) => {
+                    console.error(`Failed to load texture: ${name}`, err);
+                    reject(err);
+                });
+            });
+        }
+        
+        function renderTextureTab() {
+            textureList.innerHTML = '';
+            Object.keys(assetDatabase.textures).forEach(texName => {
+                const texData = assetDatabase.textures[texName];
+                const div = document.createElement('div');
+                div.className = 'p-2 rounded bg-gray-800 text-center';
+                const img = document.createElement('img');
+                img.src = texData.url;
+                img.className = 'w-16 h-16 object-cover mx-auto border border-gray-600';
+                const p = document.createElement('p');
+                p.textContent = texName;
+                p.className = 'text-xs mt-1 truncate';
+                div.appendChild(img);
+                div.appendChild(p);
+                textureList.appendChild(div);
+            });
+        }
+        
+        // --- Audio ---
+        importAudioInput.addEventListener('change', (e) => {
+            for (const file of e.target.files) {
+                const url = URL.createObjectURL(file);
+                addAudioToDatabase(url, file.name, file);
+            }
+            e.target.value = null; // Reset input
+        });
+
+        function addAudioToDatabase(url, name, file) {
+            return new Promise((resolve) => {
+                assetDatabase.audio[name] = { name: name, url: url, file: file };
+                renderAudioTab();
+                console.log(`Audio loaded: ${name}`);
+                resolve();
+            });
+        }
+        
+        function renderAudioTab() {
+            audioList.innerHTML = '';
+            Object.keys(assetDatabase.audio).forEach(audioName => {
+                const div = document.createElement('div');
+                div.className = 'p-2 rounded bg-gray-800 text-center';
+                div.textContent = audioName;
+                div.className = 'text-xs mt-1 truncate p-2 rounded bg-gray-800';
+                audioList.appendChild(div);
+            });
+        }
+        
         // --- 12. INITIALIZATION ---
         function init() {
-            captureConsole();
-            console.log("Initializing 3D Game Engine...");
-
-            renderer = new THREE.WebGLRenderer({ canvas: mainCanvas, antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
+            overrideConsole();
+            console.log("Engine init...");
+            
+            // Basic Three.js setup
             threeScene = new THREE.Scene();
-            editorCamera = new THREE.PerspectiveCamera(50, mainCanvas.clientWidth / mainCanvas.clientHeight, 0.1, 1000);
+            threeScene.background = new THREE.Color(settings.editorBgColor);
+            
+            // Audio setup
+            audioListener = new THREE.AudioListener();
+            audioLoader = new THREE.AudioLoader();
+            
+            editorCamera = new THREE.PerspectiveCamera(75, mainCanvas.clientWidth / mainCanvas.clientHeight, 0.1, 1000);
             editorCamera.position.set(5, 5, 5);
-            orbitControls = new OrbitControls(editorCamera, renderer.domElement);
-            orbitControls.enableDamping = true;
-            transformControls = new TransformControls(editorCamera, renderer.domElement);
-            threeScene.add(transformControls);
-            transformControls.addEventListener('mouseUp', () => { if (selectedObjectId) renderInspector(); });
-            transformControls.addEventListener('dragging-changed', (event) => { orbitControls.enabled = !event.value; });
+            editorCamera.add(audioListener); // Add listener to editor camera
+            
+            renderer = new THREE.WebGLRenderer({ canvas: mainCanvas, antialias: true });
+            renderer.setSize(mainCanvas.clientWidth, mainCanvas.clientHeight);
+            renderer.shadowMap.enabled = true;
             
             // Add default material
-            assetDatabase.materials['Default'] = new THREE.MeshStandardMaterial({ color: 0x4ade80, wireframe: true });
+            defaultMaterial = new THREE.MeshStandardMaterial({ color: 0x4ade80, wireframe: false });
+            assetDatabase.materials['Default'] = {
+                material: defaultMaterial,
+                color: '#4ade80',
+                textureName: 'None'
+            };
+            renderMaterialTab();
             
             const gridHelper = new THREE.GridHelper(20, 20);
             threeScene.add(gridHelper);
+            
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
             threeScene.add(ambientLight);
             
-            clearScene(); // Sets up default light
-            loadSettings();
+            // Controls
+            orbitControls = new THREE.OrbitControls(editorCamera, renderer.domElement);
+            orbitControls.enableDamping = true;
             
-            // createGameObject(false); // Don't create a default object in a new scene
+            transformControls = new THREE.TransformControls(editorCamera, renderer.domElement);
+            transformControls.addEventListener('dragging-changed', (event) => {
+                orbitControls.enabled = !event.value;
+            });
+            transformControls.addEventListener('objectChange', () => {
+                // Update inspector on gizmo move
+                if (inspectorMode === 'object') renderObjectInspector();
+            });
+            threeScene.add(transformControls);
             
-            renderAssetBrowser();
+            // Window resize
+            window.addEventListener('resize', () => {
+                const container = mainCanvas.parentElement;
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                
+                editorCamera.aspect = width / height;
+                editorCamera.updateProjectionMatrix();
+                
+                if (gameCamera) {
+                    gameCamera.aspect = width / height;
+                    gameCamera.updateProjectionMatrix();
+                }
+                
+                renderer.setSize(width, height);
+            });
+            
+            // Dispatch resize to fit canvas
+            setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+
+            loadSettings(); // Sets background
+            clearScene(false); // Sets up default light and camera
+            
+            setupConsoleButtons();
+            
+            // Start editor loop
             runEditorLoop();
             
-            console.log("Engine initialized.");
+            console.log("Engine initialized successfully.");
         }
 
         init();
-        
     </script>
 </body>
 </html>
